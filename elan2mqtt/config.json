@@ -1,19 +1,19 @@
 {
   "name": "eLAN MQTT",
-  "version": "1.16",
+  "version": "1.15",
   "slug": "elan2mqtt",
   "description": "MQTT gateway for eLAN",
   "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
-  "init": "false",
+  "startup": "before",
   "boot": "auto",
   "options": {
-    "eLanURL": "http://ip.address",
-    "MQTTserver": "mqtt://username:password@ip.address",
-    "username": "admin",
-    "password": "elkoep",
-    "log_level": "notice",
+    "eLanURL": "http://192.168.3.136",
+    "MQTTserver": "mqtt://elan:elan@192.168.3.176",
+    "username": "user",
+    "password": "user",
+    "log_level": "trace",
     "disable_autodiscovery": "false",
-    "mqtt_id": ""
+    "mqtt_id": "elan"
   },
   "schema": {
     "eLanURL": "str",

@@ -67,7 +67,7 @@ except ImportError:  # pragma: no cover
     SSLContext = object  # type: ignore[misc,assignment]
 
 try:
-    import cchardet as chardet
+    import chardet as chardet
 except ImportError:  # pragma: no cover
     import charset_normalizer as chardet  # type: ignore[no-redef]
 
@@ -714,7 +714,7 @@ class ClientResponse(HeadersMixin):
     # from the Status-Line of the response
     version = None  # HTTP-Version
     status = None  # type: int  # Status-Code
-    reason = None  # Reason-Phrase
+    reason: str = None  # Reason-Phrase
 
     content = None  # type: StreamReader  # Payload stream
     _headers = None  # type: CIMultiDictProxy[str]  # Response headers
