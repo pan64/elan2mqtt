@@ -25,7 +25,7 @@ COPY config.json /$ARCHIVE/config.json
 WORKDIR /$ARCHIVE
 
 # install python packages
-RUN pip install -r /$ARCHIVE/requirements.txt
+RUN pip install --no-cache-dir -r /$ARCHIVE/requirements.txt
 
 # RUN apk del gcc g++ libc-dev python3-dev
 
