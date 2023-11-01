@@ -5,7 +5,8 @@ multidict
 attrs
 yarl
 async_timeout
-cchardet
+#cchardet
+chardet
 #multidict==4.5.2
 #attrs>=17.3.0
 #yarl==1.2.6
