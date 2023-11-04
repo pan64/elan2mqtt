@@ -50,9 +50,6 @@ async def main():
 
     mqtt_cli: mqtt_client.MqttClient = mqtt_client.MqttClient("socket_listener")
     logger.info("Connecting to MQTT broker")
-    mqtt_cli.setup()
-    mqtt_cli.connect_mqtt()
-    mqtt_cli.loop_start()
 
     elan_cli: elan_client.ElanClient = elan_client.ElanClient()
     elan_cli.setup()
@@ -61,7 +58,7 @@ async def main():
     # Let's give MQTT some time to connect
     time.sleep(5)
 
-    if not mqtt_cli.is_connected():
+    if not mqtt_cli.is_connected:
         raise Exception('MQTT not connected!')
 
     # Get list of devices
@@ -137,9 +134,9 @@ async def main():
                     await publish_status(u[dev_id])
             except:
                 # It is perfectly normal to reach here - e.g. timeout
+                logger.exception("Exception", exc_info=True)
                 time.sleep(.1)
-                if not mqtt_cli.connected_flag:
-                    raise ClientException("Broker not connected")
+                raise ClientException("internal error")
             time.sleep(.1)
 
         # logger.error("Should not ever reach here")

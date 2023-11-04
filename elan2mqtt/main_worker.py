@@ -772,10 +772,7 @@ async def main():
 
     mqtt_cli: mqtt_client.MqttClient = mqtt_client.MqttClient("main_worker")
     logger.info("Connecting to MQTT broker")
-    mqtt_cli.setup()
-    mqtt_cli.connect_mqtt()
-    mqtt_cli.loop_start()
-    
+
     elan_cli: elan_client.ElanClient = elan_client.ElanClient()
     elan_cli.setup()
     await elan_cli.login()
@@ -905,6 +902,7 @@ async def main():
         await mqtt_cli.disconnect()
     except:
         logger.error("could not disconnect mqtt")
+        mqtt_cli.connected_flag = False
     time.sleep(5)
 
 
@@ -953,7 +951,7 @@ if __name__ == '__main__':
             asyncio.get_event_loop().run_until_complete(main())
         except:
             logger.exception(
-                "MAIN WORKER: Something went wrong. But don't worry we will start over again."
-            )
+                "MAIN WORKER: Something went wrong. But don't worry we will start over again.",
+                exc_info = True )
             logger.error("But at first take some break. Sleeping for 10 s")
             time.sleep(10)
