@@ -7,54 +7,6 @@ import paho.mqtt.client as mqtt
 logger = logging.getLogger(__name__)
 
 
-class MqttClient:
-    connections = {}
-
-    def __init__(self, name: str):
-        self.my_name = "eLan2MQTT_main_worker_{0}".format(name)
-        if self.my_name in self.connections:
-            return
-        broker = MqttClientBase(self.my_name)
-        broker.setup()
-
-    def connect(self) -> None:
-        if self.is_connected():
-            return
-        broker = self.connections[self.my_name]
-        broker.connect(1883, 120)
-        broker.loop_start()
-
-    def disconnect(self):
-        if not self.is_connected():
-            return
-        self.connections[self.my_name].disconnect()
-
-    def is_connected(self) -> bool:
-        if self.my_name not in self.connections:
-            return False
-        return self.connections[self.my_name].is_connected()
-
-    def publish(self, *args, **kwargs):
-        if not self.is_connected():
-            self.connect()
-        return self.connections[self.my_name].publish(*args, **kwargs)
-
-    def subscribe(self, *args, **kwargs):
-        if not self.is_connected():
-            self.connect()
-        return self.connections[self.my_name].subscribe(*args, **kwargs)
-
-    def has_message(self, *args, **kwargs):
-        if not self.is_connected():
-            self.connect()
-        return self.connections[self.my_name].has_message(*args, **kwargs)
-
-    def pop_message(self, *args, **kwargs):
-        if not self.is_connected():
-            self.connect()
-        return self.connections[self.my_name].pop_message(*args, **kwargs)
-
-
 class MqttClientBase(mqtt.Client):
     pending_message: list[Any] = []
 
@@ -63,12 +15,14 @@ class MqttClientBase(mqtt.Client):
         self.mqtt_broker = None
 
     def on_connect_func(self, client, userdata, flags, rc):
+        """on connect function"""
         if rc == 0:
             logger.info("Connected to MQTT broker")
         else:
             logger.error("Bad connection Returned code = " + str(rc))
 
     def on_disconnect_func(self, client, userdata, rc):
+        """on disconnect function"""
         logger.info("MQTT broker disconnected. Reason: " + str(rc))
 
     def on_message_func(self, client, userdata, message):
@@ -77,7 +31,7 @@ class MqttClientBase(mqtt.Client):
 
     def read_config(self) -> str:
         logger.info("loading config file")
-        with open("config.json", "r") as json_file:
+        with open("config.json", "r", encoding="utf8") as json_file:
             data = json.load(json_file)
         result = data["options"]["MQTTserver"]
         logger.info("mqtt data: {}".format(result))
@@ -123,3 +77,52 @@ class MqttClientBase(mqtt.Client):
     def pop_message(self):
         logger.debug("pop message")
         return self.pending_message.pop(0)
+
+
+class MqttClient:
+    conn_list: dict[str: MqttClientBase] = {}
+
+    def __init__(self, name: str):
+        self.my_name = "eLan2MQTT_{0}".format(name)
+        if self.my_name in self.conn_list:
+            return
+        broker = MqttClientBase(self.my_name)
+        broker.setup()
+        self.conn_list[self.my_name] = broker
+
+    def connect(self) -> None:
+        if self.is_connected():
+            return
+        broker = self.conn_list[self.my_name]
+        broker.connect(broker.mqtt_broker, 1883, 120)
+        broker.loop_start()
+
+    def disconnect(self):
+        if not self.is_connected():
+            return
+        self.conn_list[self.my_name].disconnect()
+
+    def is_connected(self) -> bool:
+        if self.my_name not in self.conn_list:
+            return False
+        return self.conn_list[self.my_name].is_connected()
+
+    def publish(self, *args, **kwargs):
+        if not self.is_connected():
+            self.connect()
+        return self.conn_list[self.my_name].publish(*args, **kwargs)
+
+    def subscribe(self, *args, **kwargs):
+        if not self.is_connected():
+            self.connect()
+        return self.conn_list[self.my_name].subscribe(*args, **kwargs)
+
+    def has_message(self, *args, **kwargs):
+        if not self.is_connected():
+            self.connect()
+        return self.conn_list[self.my_name].has_message(*args, **kwargs)
+
+    def pop_message(self, *args, **kwargs):
+        if not self.is_connected():
+            self.connect()
+        return self.conn_list[self.my_name].pop_message(*args, **kwargs)

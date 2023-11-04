@@ -1,3 +1,5 @@
+#/usr/bin/python3
+""" Elan to MQTT interface """
 # -*- coding: utf-8 -*-
 
 ##########################################################################
@@ -25,12 +27,11 @@ import argparse
 import asyncio
 import json
 import logging
-import sys
 import time
-from aiohttp import ClientResponse
 
-import mqtt_client
 import elan_client
+import mqtt_client
+from aiohttp import ClientResponse
 
 logger = logging.getLogger(__name__)
 
@@ -771,6 +772,7 @@ async def main():
             logger.exception("Unexpected error:")
 
     mqtt_cli: mqtt_client.MqttClient = mqtt_client.MqttClient("main_worker")
+    mqtt_cli.connect()
     logger.info("Connecting to MQTT broker")
 
     elan_cli: elan_client.ElanClient = elan_client.ElanClient()

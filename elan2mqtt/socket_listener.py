@@ -49,6 +49,7 @@ async def main():
             logger.info("Status published for " + d[mac_d]['url'] + " " + str(resp))
 
     mqtt_cli: mqtt_client.MqttClient = mqtt_client.MqttClient("socket_listener")
+    mqtt_cli.connect()
     logger.info("Connecting to MQTT broker")
 
     elan_cli: elan_client.ElanClient = elan_client.ElanClient()
