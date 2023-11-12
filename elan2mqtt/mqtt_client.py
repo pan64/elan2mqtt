@@ -80,6 +80,7 @@ class MqttClientBase(mqtt.Client):
 
 
 class MqttClient:
+    """general mqtt client class"""
     conn_list: dict[str: MqttClientBase] = {}
 
     def __init__(self, name: str):
@@ -93,6 +94,7 @@ class MqttClient:
     def connect(self) -> None:
         if self.is_connected():
             return
+        logger.debug("connecting to broker")
         broker = self.conn_list[self.my_name]
         broker.connect(broker.mqtt_broker, 1883, 120)
         broker.loop_start()
