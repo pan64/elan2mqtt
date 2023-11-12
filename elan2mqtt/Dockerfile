@@ -11,6 +11,10 @@ ENV ARCHIVE=elan2mqtt-$ELAN2MQTT_VERSION
 #RUN apk add --no-cache --update gcc g++ libc-dev python3-dev 
 RUN mkdir -p /$ARCHIVE /$ARCHIVE/aiohttp
 
+# install python packages
+COPY requirements.txt /$ARCHIVE/requirements.txt
+RUN pip install --no-cache-dir -r /$ARCHIVE/requirements.txt
+
 # Copy data for add-on
 COPY run.sh /$ARCHIVE/run.sh
 COPY main_worker.py /$ARCHIVE/main_worker.py
@@ -18,14 +22,11 @@ COPY socket_listener.py /$ARCHIVE/socket_listener.py
 COPY elan_client.py /$ARCHIVE/elan_client.py
 COPY mqtt_client.py /$ARCHIVE/mqtt_client.py
 COPY aiohttp/* /$ARCHIVE/aiohttp/
-COPY requirements.txt /$ARCHIVE/requirements.txt
 COPY config.json /$ARCHIVE/config.json
 
 # Let's set it to our add-on persistent data directory.
 WORKDIR /$ARCHIVE
 
-# install python packages
-RUN pip install --no-cache-dir -r /$ARCHIVE/requirements.txt
 
 # RUN apk del gcc g++ libc-dev python3-dev
 
