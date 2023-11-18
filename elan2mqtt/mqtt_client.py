@@ -12,7 +12,7 @@ class MqttClientBase(mqtt.Client):
 
     def __init__(self, name: str):
         super().__init__("eLan2MQTT_main_worker_{0}".format(name))
-        self.mqtt_broker = None
+        self.mqtt_host = None
 
     def on_connect_func(self, client, userdata, flags, rc):
         """on connect function"""
@@ -66,7 +66,7 @@ class MqttClientBase(mqtt.Client):
         self.on_connect = self.on_connect_func
         self.on_disconnect = self.on_disconnect_func
         self.on_message = self.on_message_func
-        self.mqtt_broker = mqtt_broker
+        self.mqtt_host = mqtt_broker
 
     def has_message(self) -> bool:
         res = len(self.pending_message) > 0
@@ -96,7 +96,7 @@ class MqttClient:
             return
         logger.debug("connecting to broker")
         broker = self.conn_list[self.my_name]
-        broker.connect(broker.mqtt_broker, 1883, 120)
+        broker.connect(broker.mqtt_host, 1883, 120)
         broker.loop_start()
 
     def disconnect(self):

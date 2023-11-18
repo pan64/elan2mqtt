@@ -772,13 +772,9 @@ async def main():
             logger.exception("Unexpected error:")
 
     mqtt_cli: mqtt_client.MqttClient = mqtt_client.MqttClient("main_worker")
-    mqtt_cli.connect()
     logger.info("Connecting to MQTT broker")
+    mqtt_cli.connect()
 
-    elan_cli: elan_client.ElanClient = elan_client.ElanClient()
-    elan_cli.setup()
-    await elan_cli.login()
-    
     # Let's give MQTT some time to connect
     time.sleep(5)
 
@@ -787,6 +783,10 @@ async def main():
         raise Exception('MQTT not connected!')
 
     logger.info("Connected to MQTT broker")
+
+    elan_cli: elan_client.ElanClient = elan_client.ElanClient()
+    elan_cli.setup()
+    await elan_cli.login()
 
     logger.info("Getting eLan device list")
     device_list: dict = await elan_cli.get('/api/devices')
@@ -904,7 +904,6 @@ async def main():
         await mqtt_cli.disconnect()
     except:
         logger.error("could not disconnect mqtt")
-        mqtt_cli.connected_flag = False
     time.sleep(5)
 
 
