@@ -1,17 +1,23 @@
 import json
 import logging
+import time
 from typing import Any
 
 import paho.mqtt.client as mqtt
 
 logger = logging.getLogger(__name__)
 
+FIRST_RECONNECT_DELAY = 1
+RECONNECT_RATE = 2
+MAX_RECONNECT_COUNT = 12
+MAX_RECONNECT_DELAY = 60
+
 
 class MqttClientBase(mqtt.Client):
     pending_message: list[Any] = []
 
     def __init__(self, name: str):
-        super().__init__("eLan2MQTT_main_worker_{0}".format(name))
+        super().__init__("eLan2MQTT_{0}".format(name))
         self.mqtt_host = None
 
     def on_connect_func(self, client, userdata, flags, rc):
@@ -23,7 +29,23 @@ class MqttClientBase(mqtt.Client):
 
     def on_disconnect_func(self, client, userdata, rc):
         """on disconnect function"""
-        logger.info("MQTT broker disconnected. Reason: " + str(rc))
+        logging.info("Disconnected with result code: %s", rc)
+        reconnect_count, reconnect_delay = 0, FIRST_RECONNECT_DELAY
+        while reconnect_count < MAX_RECONNECT_COUNT:
+            logging.info("Reconnecting to mqtt in %d seconds...", reconnect_delay)
+            time.sleep(reconnect_delay)
+
+            try:
+                client.reconnect()
+                logging.info("Reconnected successfully!")
+                return
+            except Exception as err:
+                logging.error("%s. Reconnect failed. Retrying...", err)
+
+            reconnect_delay *= RECONNECT_RATE
+            reconnect_delay = min(reconnect_delay, MAX_RECONNECT_DELAY)
+            reconnect_count += 1
+        logging.error("Reconnect failed after %s attempts. Exiting...", reconnect_count)
 
     def on_message_func(self, client, userdata, message):
         logger.info("MQTT broker message. " + str(message.topic))
@@ -103,6 +125,7 @@ class MqttClient:
         if not self.is_connected():
             return
         self.conn_list[self.my_name].disconnect()
+        self.conn_list.pop(self.my_name)
 
     def is_connected(self) -> bool:
         if self.my_name not in self.conn_list:
