@@ -902,8 +902,8 @@ async def main():
     try:
         logging.warning("disconnecting mqtt")
         await mqtt_cli.disconnect()
-    except:
-        logger.error("could not disconnect mqtt")
+    except Exception as exc:
+        logger.error("could not disconnect mqtt: '{}'".format(str(exc)))
     time.sleep(5)
 
 
