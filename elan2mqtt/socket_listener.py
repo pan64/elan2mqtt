@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+"""
 ##########################################################################
 #
 # This is eLAN to MQTT gateway
@@ -13,19 +13,20 @@
 #
 #
 ##########################################################################
-
+"""
 import argparse
 import asyncio
-
-import mqtt_client
-import elan_client
 
 import json
 
 import logging
 import time
+from logging import Logger
 
-logger = logging.getLogger(__name__)
+import mqtt_client
+import elan_client
+
+logger: Logger = logging.getLogger(__name__)
 
 pending_message = []
 
@@ -43,7 +44,7 @@ async def main():
         """Publish message to status topic. Topic syntax is: elan / mac / status """
         if mac_d in d:
             logger.info("Getting and publishing status for " + d[mac_d]['url'])
-            resp = await elan_cli.get(d[mac_d]['url'] + '/state')
+            resp = elan_cli.get(d[mac_d]['url'] + '/state')
             mqtt_cli.publish(d[mac_d]['status_topic'],
                              bytearray(json.dumps(resp), 'utf-8'))
             logger.info("Status published for " + d[mac_d]['url'] + " " + str(resp))
@@ -54,7 +55,7 @@ async def main():
 
     elan_cli: elan_client.ElanClient = elan_client.ElanClient()
     elan_cli.setup()
-    await elan_cli.login()
+    # await elan_cli.login()
 
     # Let's give MQTT some time to connect
     time.sleep(5)
@@ -65,14 +66,14 @@ async def main():
     # Get list of devices
     # If we are not authenticated it will raise exception due to json
     logger.info("Getting eLan device list")
-    device_list: dict = await elan_cli.get('/api/devices')
+    device_list: dict = elan_cli.get('/api/devices')
 
     logger.info("Devices defined in eLan:\n" + str(device_list))
 
     mac = None
 
     for device in device_list:
-        info = await elan_cli.get(device_list[device]['url'])
+        info = elan_cli.get(device_list[device]['url'])
         device_list[device]['info'] = info
 
         if "address" in info['device info']:
@@ -105,8 +106,6 @@ async def main():
         await publish_status(mac)
 
     logger.info("Connecting to websocket to get updates")
-    websocket = await elan_cli.ws_connect()
-    logger.info("Socket connected")
 
     # interval between mandatory messages to keep connections open (and to renew session) in s (eLan session expires in 0.5 h)
     keep_alive_interval = 1 * 60
@@ -124,7 +123,8 @@ async def main():
                         logger.info("Keep alive - status for MAC " + mac)
                         await publish_status(mac)
                 # Waiting for WebSocket eLan message
-                echo = await websocket.receive_json()
+                #echo = json.loads(await websocket.recv())
+                echo = await elan_cli.ws_json()
                 if echo is None:
                     time.sleep(.25)
                     # print("Empty message?")
@@ -143,11 +143,7 @@ async def main():
         # logger.error("Should not ever reach here")
         # await c.disconnect()
     except ClientException as ce:
-        logger.error("SOCKET LISTENER: Client exception: %s" % ce)
-        try:
-            await mqtt_cli.disconnect()
-        except:
-            pass
+        logger.error("SOCKET LISTENER: Client exception: {}".format(ce))
         time.sleep(5)
 
 
