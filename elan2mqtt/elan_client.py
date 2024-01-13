@@ -3,8 +3,10 @@ import json
 import logging
 import time
 from logging import Logger
-import aiohttp
+import requests
+import datetime
 from aiohttp import ClientResponse, ClientWebSocketResponse
+import websockets
 
 logger: Logger = logging.getLogger(__name__)
 
@@ -16,15 +18,17 @@ class ElanException(BaseException):
 class ElanClient:
 
     def __init__(self):
-        pass
-        self.creds = {}
-        self.elan_url = None
-        self.logged_in = False
-        cookie_jar = aiohttp.CookieJar(unsafe=True)
-        self.session = aiohttp.ClientSession(cookie_jar=cookie_jar)
 
-    def setup(self):
+        self.creds = {}
+        self.elan_url:str = None
+        self.logged_in: bool = False
+        self.session: requests.Session = None
+        self.cookie:str = None
+        self.ws: websockets.WebSocketClientProtocol = None
+
+    def setup(self) -> None:
         self.read_config()
+
     def read_config(self) -> None:
         logging.info("loading config file")
         with open("config.json", "r") as json_file:
@@ -40,76 +44,95 @@ class ElanClient:
 
         logger.info("elan url: '{}', user: '{}', pass: '{}'".format(self.elan_url, elan_user, elan_pass))
 
-    async def check_resp(self, resp: ClientResponse) -> None:
-        if resp.status == 200:
-            return
-        msg = "status: {}, reason: {}".format(resp.status, resp.reason)
-        self.logged_in = False
-        raise ElanException(msg)
+    def check_response(self, response: requests.Response) -> bool:
+        """
+        check if response is acceptable
+        :param response:
+        :return: true/false
+        """
+        if response.status_code == 200:
+            return True
+        logger.debug(response.status_code)
+        logger.debug(response.reason)
+        result = response.json()
+        response.close()
+        if "error" in result:
+            msg = result["error"]["message"]
+            self.cookie = None
+            self.session = None
+            logger.error(msg)
+        return False
 
-    async def get(self, url: str = "") -> dict:
+    def get(self, url: str) -> dict:
+        """
+        :param url:
+        :return: dict returned from url
+        """
+        self.connect()
         if url[0:4] != 'http':
             url = self.elan_url + url
-        logger.debug("trying to GET '{}'".format(url))
-        resp: ClientResponse = await self.session.get(url, timeout=3)
-        if resp.status == 401:
-            logging.warning("Status: 401, unauthorized")
-            await self.login()
-            resp = await self.session.get(url, timeout=3)
-
-        await self.check_resp(resp)
-        result = {}
+        headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
+        logger.debug("trying to get {}".format(url))
+        restart = False
         try:
-            # result = await resp.json(content_type='text/html')
-            result = await resp.json()
+            response = self.session.get(url=url, headers=headers)
         except:
-            logger.error(resp.text)
-            pass
-        return result
+            restart = True
+        if restart or not self.check_response(response):
+            self.connect(True)
+            response = self.session.get(url=url, headers=headers)
+            self.check_response(response)
+        return response.json()
 
-    async def post(self, url: str = "", data=None) -> None:
-        resp: ClientResponse = await self.session.post(url = self.elan_url + url, data = data)
-        await self.check_resp(resp)
+    def post(self, url: str, data = None ) -> requests.Response:
+        self.connect()
+        full_url = "{}{}".format(self.elan_url, url)
+        headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
+        logger.debug("trying to put {}".format(full_url))
+        response = self.session.post(url=full_url, headers=headers, data=data)
+        self.check_response(response)
+        return response
 
-    async def put(self, url: str = "", data=None) -> ClientResponse:
-        logger.debug("trying to PUT '{}', '{}'".format(url, data))
-        resp: ClientResponse = await self.session.put(url = url, data = data)
-        await self.check_resp(resp)
-        return resp
+    def put(self, url: str, datat=None) -> requests.Response:
+        self.connect()
+        full_url = "{}{}".format(self.elan_url, url)
+        headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
+        logger.debug("trying to put {}".format(full_url))
+        response = self.session.put(url=full_url, headers=headers, data=data)
+        self.check_response(response)
+        return response
 
-    async def login(self):
-        logger.info("Get main/login page (to get cookies)")
-        # dirty check if we are authenticated and to get session
-        # await self.get('/')
-
-        logger.info("Are we already authenticated? E.g. API check")
-        # dirty check if we are authenticated and to get session
-        # await self.get('/api')
-
-        while True:
-            # perform login
-            # it should result in new AuthID cookie
-            logger.info("Authenticating to eLAN")
-            await self.post(url = '/login', data=self.creds)
-
-            # Get list of devices
-            # If we are not authenticated if will raise exception due to json
-            # --> it triggers loop reset with new authenticating attempt
-            logger.info("Getting eLan device list")
-            try:
-                await self.session.get(self.elan_url + '/api/devices', timeout=3)
-                self.logged_in = True
-                logger.info("logged in to eLAN")
-                break
-            except ElanException:
-                time.sleep(1)
-
-    async def ws_connect(self) -> ClientWebSocketResponse:
-        logger.info("Connecting to websocket to get updates")
-        websocket: ClientWebSocketResponse = await self.session.ws_connect(self.elan_url + '/api/ws', timeout=1, autoping=True)
-        logger.info("Socket connected")
-        return websocket
 
     @property
     def is_connected(self):
         return self.logged_in
+
+    def connect(self, force: bool = False):
+        if self.cookie and not force:
+            return
+        now = datetime.datetime.now()
+        logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
+        self.get_login_cookie()
+
+    async def ws_json(self) -> dict:
+        data = ()
+        async for message in self.ws:
+            data = json.loads(await message.recv())
+        return data
+
+    def get_login_cookie(self) -> None:
+        name = "pan"
+        key = '1a0af0924dfcfc49af82f0d1e4eb59a681339978'
+        login_obj = {"name": name, 'key': key}
+        if not self.session:
+            self.session = requests.Session()
+        if self.ws:
+            self.ws.close()
+            self.ws = None
+        response = self.session.post(self.elan_url + '/login', data=login_obj)
+        self.cookie = response.cookies['AuthAPI']
+        logger.debug("Cookie: AuthAPI={}".format(self.cookie))
+        headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
+        self.ws = websockets.connect(self.elan_url.replace("http","ws") + '/api/ws', extra_headers=headers
+                                             ,ping_timeout=1000)
+        logger.info("Socket connected")

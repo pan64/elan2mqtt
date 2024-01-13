@@ -45,7 +45,8 @@ async def main():
         """Publish message to status topic. Topic syntax is: elan / mac / status """
         if mac_d in d:
             logger.info("Getting and publishing status for " + d[mac_d]['url'])
-            resp = await elan_cli.get(d[mac_d]['url'] + '/state')
+            # resp = await elan_cli.get(d[mac_d]['url'] + '/state')
+            resp = elan_cli.get(d[mac_d]['url'] + '/state')
 #            # logger.debug(resp.status)
 #            if resp.status != 200:
 #                # There was problem getting status of device from eLan
@@ -786,15 +787,17 @@ async def main():
 
     elan_cli: elan_client.ElanClient = elan_client.ElanClient()
     elan_cli.setup()
-    await elan_cli.login()
+#    await elan_cli.login()
 
     logger.info("Getting eLan device list")
-    device_list: dict = await elan_cli.get('/api/devices')
+    # device_list: dict = await elan_cli.get('/api/devices')
+    device_list: dict = elan_cli.get('/api/devices')
 
     logger.info("Devices defined in eLan:\n" + str(device_list))
 
     for device in device_list:
-        info = await elan_cli.get(device_list[device]['url'])
+        # info = await elan_cli.get(device_list[device]['url'])
+        info = elan_cli.get(device_list[device]['url'])
         device_list[device]['info'] = info
 
         if "address" in info['device info']:
@@ -899,11 +902,11 @@ async def main():
         logger.error("MAIN WORKER: Client exception occurred")
         logger.error(exc, exc_info=True)
 
-    try:
-        logging.warning("disconnecting mqtt")
-        await mqtt_cli.disconnect()
-    except Exception as exc:
-        logger.error("could not disconnect mqtt: '{}'".format(str(exc)))
+    # try:
+    #     logging.warning("disconnecting mqtt")
+    #     await mqtt_cli.disconnect()
+    # except Exception as exc:
+    #     logger.error("could not disconnect mqtt: '{}'".format(str(exc)))
     time.sleep(5)
 
 
