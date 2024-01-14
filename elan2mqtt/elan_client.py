@@ -1,11 +1,10 @@
+import datetime
 import hashlib
 import json
 import logging
-import time
 from logging import Logger
+
 import requests
-import datetime
-from aiohttp import ClientResponse, ClientWebSocketResponse
 import websockets
 
 logger: Logger = logging.getLogger(__name__)
@@ -20,10 +19,10 @@ class ElanClient:
     def __init__(self):
 
         self.creds = {}
-        self.elan_url:str = None
+        self.elan_url: str = None
         self.logged_in: bool = False
         self.session: requests.Session = None
-        self.cookie:str = None
+        self.cookie: str = None
         self.ws: websockets.WebSocketClientProtocol = None
 
     def setup(self) -> None:
@@ -84,7 +83,7 @@ class ElanClient:
             self.check_response(response)
         return response.json()
 
-    def post(self, url: str, data = None ) -> requests.Response:
+    def post(self, url: str, data=None) -> requests.Response:
         self.connect()
         full_url = "{}{}".format(self.elan_url, url)
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
@@ -93,7 +92,7 @@ class ElanClient:
         self.check_response(response)
         return response
 
-    def put(self, url: str, datat=None) -> requests.Response:
+    def put(self, url: str, data=None) -> requests.Response:
         self.connect()
         full_url = "{}{}".format(self.elan_url, url)
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
@@ -101,7 +100,6 @@ class ElanClient:
         response = self.session.put(url=full_url, headers=headers, data=data)
         self.check_response(response)
         return response
-
 
     @property
     def is_connected(self):
@@ -120,7 +118,7 @@ class ElanClient:
         data = ()
         logger.debug("checking ws")
         ws_host = self.elan_url.replace("http", "ws") + '/api/ws'
-        async with websockets.connect(ws_host, extra_headers=headers , ping_timeout=1000) as ws:
+        async with websockets.connect(ws_host, extra_headers=headers, ping_timeout=1000) as ws:
             data = json.loads(await ws.recv())
         return data
 
