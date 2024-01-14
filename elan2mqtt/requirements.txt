@@ -5,6 +5,8 @@ multidict
 attrs
 yarl
 async_timeout
+requests
+websockets
 #cchardet
 chardet
 #multidict==4.5.2
