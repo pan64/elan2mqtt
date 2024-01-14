@@ -23,6 +23,8 @@ import logging
 import time
 from logging import Logger
 
+from websockets import InvalidStatusCode
+
 import mqtt_client
 import elan_client
 
@@ -108,7 +110,7 @@ async def main():
     logger.info("Connecting to websocket to get updates")
 
     # interval between mandatory messages to keep connections open (and to renew session) in s (eLan session expires in 0.5 h)
-    keep_alive_interval = 1 * 60
+    keep_alive_interval = 1
     last_keep_alive = time.time()
 
     try:
@@ -145,6 +147,8 @@ async def main():
     except ClientException as ce:
         logger.error("SOCKET LISTENER: Client exception: {}".format(ce))
         time.sleep(5)
+    except InvalidStatusCode:
+        logger.error("websocket exception".format(ce))
 
 
 if __name__ == '__main__':

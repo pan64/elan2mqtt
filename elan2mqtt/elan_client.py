@@ -115,10 +115,20 @@ class ElanClient:
         self.get_login_cookie()
 
     async def ws_json(self) -> dict:
+        self.connect()
+        headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         data = ()
-        async for message in self.ws:
-            data = json.loads(await message.recv())
+        logger.debug("checking ws")
+        ws_host = self.elan_url.replace("http", "ws") + '/api/ws'
+        async with websockets.connect(ws_host, extra_headers=headers , ping_timeout=1000) as ws:
+            data = json.loads(await ws.recv())
         return data
+
+    def ws_close(self):
+        if self.ws:
+            self.ws.close()
+            self.ws = None
+            self.cookie = None
 
     def get_login_cookie(self) -> None:
         name = "pan"
@@ -132,7 +142,7 @@ class ElanClient:
         response = self.session.post(self.elan_url + '/login', data=login_obj)
         self.cookie = response.cookies['AuthAPI']
         logger.debug("Cookie: AuthAPI={}".format(self.cookie))
-        headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
-        self.ws = websockets.connect(self.elan_url.replace("http","ws") + '/api/ws', extra_headers=headers
-                                             ,ping_timeout=1000)
+        # headers = {'Cookie': "AuthAPI=a{}".format(self.cookie)}
+        # self.ws = websockets.connect(self.elan_url.replace("http","ws") + '/api/ws', extra_headers=headers
+        #                                     ,ping_timeout=1000)
         logger.info("Socket connected")
