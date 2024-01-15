@@ -1,4 +1,4 @@
-#/usr/bin/python3
+# /usr/bin/python3
 """ Elan to MQTT interface """
 # -*- coding: utf-8 -*-
 
@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 async def main():
     # placeholder for devices data
     d = {}
+
     # placeholder for message queue
 
     async def publish_status(mac_d):
@@ -47,16 +48,16 @@ async def main():
             logger.info("Getting and publishing status for " + d[mac_d]['url'])
             # resp = await elan_cli.get(d[mac_d]['url'] + '/state')
             resp = elan_cli.get(d[mac_d]['url'] + '/state')
-#            # logger.debug(resp.status)
-#            if resp.status != 200:
-#                # There was problem getting status of device from eLan
-#                # This is usually caused by expiration of login
-#                # Let's try to relogin
-#                logger.warning("Getting status of device from eLan failed. Trying to relogin and get status.")
-#                await login(args.elan_user[0], str(args.elan_password[0]).encode('cp1250'))
-#                resp = await session.get(d[mac]['url'] + '/state')
-#            assert resp.status == 200, "Status retrieval from eLan failed!"
-#            state = await resp.json()
+            #            # logger.debug(resp.status)
+            #            if resp.status != 200:
+            #                # There was problem getting status of device from eLan
+            #                # This is usually caused by expiration of login
+            #                # Let's try to relogin
+            #                logger.warning("Getting status of device from eLan failed. Trying to relogin and get status.")
+            #                await login(args.elan_user[0], str(args.elan_password[0]).encode('cp1250'))
+            #                resp = await session.get(d[mac]['url'] + '/state')
+            #            assert resp.status == 200, "Status retrieval from eLan failed!"
+            #            state = await resp.json()
             mqtt_cli.publish(d[mac_d]['status_topic'],
                              bytearray(json.dumps(resp), 'utf-8'))
             logger.info(
@@ -762,7 +763,7 @@ async def main():
             if (tmp[0] == 'eLan') and (tmp[2] == 'command') and (tmp[1] in d):
                 # post command to device - warning there are no checks
                 # print(d[tmp[1]]['url'], data)
-                #data = json.loads(data)
+                # data = json.loads(data)
                 resp: ClientResponse = await elan_cli.put(d[tmp[1]]['url'], data=data)
                 # print(resp)
                 command_info = await resp.text()
@@ -787,7 +788,7 @@ async def main():
 
     elan_cli: elan_client.ElanClient = elan_client.ElanClient()
     elan_cli.setup()
-#    await elan_cli.login()
+    #    await elan_cli.login()
 
     logger.info("Getting eLan device list")
     # device_list: dict = await elan_cli.get('/api/devices')
@@ -956,6 +957,6 @@ if __name__ == '__main__':
         except:
             logger.exception(
                 "MAIN WORKER: Something went wrong. But don't worry we will start over again.",
-                exc_info = True )
+                exc_info=True)
             logger.error("But at first take some break. Sleeping for 10 s")
             time.sleep(10)
