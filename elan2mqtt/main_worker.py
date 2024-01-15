@@ -762,7 +762,7 @@ async def main():
             # check if it is one of devices we know
             if (tmp[0] == 'eLan') and (tmp[2] == 'command') and (tmp[1] in d):
                 # post command to device - warning there are no checks
-                # print(d[tmp[1]]['url'], data)
+                logger.debug("processing: {}, {}".format(d[tmp[1]]['url'], data))
                 # data = json.loads(data)
                 resp: ClientResponse = await elan_cli.put(d[tmp[1]]['url'], data=data)
                 # print(resp)
