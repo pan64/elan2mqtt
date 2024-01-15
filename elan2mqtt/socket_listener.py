@@ -16,17 +16,15 @@
 """
 import argparse
 import asyncio
-
 import json
-
 import logging
 import time
 from logging import Logger
 
 from websockets import InvalidStatusCode
 
-import mqtt_client
-import elan_client
+from elan_client import ElanClient
+from mqtt_client import MqttClient
 
 logger: Logger = logging.getLogger(__name__)
 
@@ -34,7 +32,9 @@ pending_message = []
 
 
 class ClientException(BaseException):
-    pass
+    """
+    general client error
+    """
 
 
 async def main():
@@ -49,13 +49,13 @@ async def main():
             resp = elan_cli.get(d[mac_d]['url'] + '/state')
             mqtt_cli.publish(d[mac_d]['status_topic'],
                              bytearray(json.dumps(resp), 'utf-8'))
-            logger.info("Status published for " + d[mac_d]['url'] + " " + str(resp))
+            logger.info("Status published for {} {}".format(d[mac_d]['url'], str(resp)))
 
-    mqtt_cli: mqtt_client.MqttClient = mqtt_client.MqttClient("socket_listener")
+    mqtt_cli: MqttClient = MqttClient("socket_listener")
     mqtt_cli.connect()
     logger.info("Connecting to MQTT broker")
 
-    elan_cli: elan_client.ElanClient = elan_client.ElanClient()
+    elan_cli: ElanClient = ElanClient()
     elan_cli.setup()
     # await elan_cli.login()
 
@@ -63,7 +63,7 @@ async def main():
     time.sleep(5)
 
     if not mqtt_cli.is_connected:
-        raise Exception('MQTT not connected!')
+        raise ClientException('MQTT not connected!')
 
     # Get list of devices
     # If we are not authenticated it will raise exception due to json
@@ -78,12 +78,15 @@ async def main():
         info = elan_cli.get(device_list[device]['url'])
         device_list[device]['info'] = info
 
-        if "address" in info['device info']:
+        try:
             mac = str(info['device info']['address'])
-        else:
+        except KeyError:
             mac = str(info['id'])
             logger.error("There is no MAC for device " + str(device_list[device]))
             device_list[device]['info']['device info']['address'] = mac
+        except:
+            logger.error("Unexpected error", exc_info=True)
+            continue
 
         u[device] = mac
 
@@ -109,7 +112,8 @@ async def main():
 
     logger.info("Connecting to websocket to get updates")
 
-    # interval between mandatory messages to keep connections open (and to renew session) in s (eLan session expires in 0.5 h)
+    # interval between mandatory messages to keep connections open (and to renew session) in s
+    # (eLan session expires in 0.5 h)
     keep_alive_interval = 1
     last_keep_alive = time.time()
 
@@ -125,7 +129,7 @@ async def main():
                         logger.info("Keep alive - status for MAC " + mac)
                         await publish_status(mac)
                 # Waiting for WebSocket eLan message
-                #echo = json.loads(await websocket.recv())
+                # echo = json.loads(await websocket.recv())
                 echo = await elan_cli.ws_json()
                 if echo is None:
                     time.sleep(.25)
@@ -147,8 +151,8 @@ async def main():
     except ClientException as ce:
         logger.error("SOCKET LISTENER: Client exception: {}".format(ce))
         time.sleep(5)
-    except InvalidStatusCode:
-        logger.error("websocket exception".format(ce))
+    except InvalidStatusCode as isc:
+        logger.error("websocket exception".format(str(isc)))
 
 
 if __name__ == '__main__':
@@ -165,7 +169,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     formatter = "[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s"
-    numeric_level = getattr(logging, args.log_level[0].upper(), None)
+    numeric_level: int = getattr(logging, args.log_level[0].upper(), None)
     if not isinstance(numeric_level, int):
         numeric_level = 30
     logging.basicConfig(level=numeric_level, format=formatter)

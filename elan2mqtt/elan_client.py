@@ -29,7 +29,7 @@ class ElanClient:
         self.read_config()
 
     def read_config(self) -> None:
-        logging.info("loading config file")
+        logger.info("loading config file")
         with open("config.json", "r") as json_file:
             data = json.load(json_file)
         self.elan_url = data["options"]["eLanURL"]
@@ -87,7 +87,7 @@ class ElanClient:
         self.connect()
         full_url = "{}{}".format(self.elan_url, url)
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
-        logger.debug("trying to put {}".format(full_url))
+        logger.debug("trying to post {}".format(full_url))
         response = self.session.post(url=full_url, headers=headers, data=data)
         self.check_response(response)
         return response
@@ -116,8 +116,8 @@ class ElanClient:
         self.connect()
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         data = ()
-        logger.debug("checking ws")
-        ws_host = self.elan_url.replace("http", "ws") + '/api/ws'
+        ws_host = self.elan_url.replace("http://", "ws://") + '/api/ws'
+        logger.debug("checking ws {}".format(ws_host))
         async with websockets.connect(ws_host, extra_headers=headers, ping_timeout=1000) as ws:
             data = json.loads(await ws.recv())
         return data
