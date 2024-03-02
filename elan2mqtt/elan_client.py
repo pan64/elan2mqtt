@@ -85,19 +85,21 @@ class ElanClient:
 
     def post(self, url: str, data=None) -> requests.Response:
         self.connect()
-        full_url = "{}{}".format(self.elan_url, url)
+        if url[0:4] != 'http':
+            url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
-        logger.debug("trying to post {}".format(full_url))
-        response = self.session.post(url=full_url, headers=headers, data=data)
+        logger.debug("trying to post {}".format(url))
+        response = self.session.post(url=url, headers=headers, data=data)
         self.check_response(response)
         return response
 
     def put(self, url: str, data=None) -> requests.Response:
         self.connect()
-        full_url = "{}{}".format(self.elan_url, url)
+        if url[0:4] != 'http':
+            url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
-        logger.debug("trying to put {}".format(full_url))
-        response = self.session.put(url=full_url, headers=headers, data=data)
+        logger.debug("trying to put {}".format(url))
+        response = self.session.put(url=url, headers=headers, data=data)
         self.check_response(response)
         return response
 
