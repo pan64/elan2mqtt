@@ -764,9 +764,9 @@ async def main():
                 # post command to device - warning there are no checks
                 logger.debug("processing: {}, {}".format(d[tmp[1]]['url'], data))
                 # data = json.loads(data)
-                resp: ClientResponse = await elan_cli.put(d[tmp[1]]['url'], data=data)
+                resp: ClientResponse = elan_cli.put(d[tmp[1]]['url'], data=data)
                 # print(resp)
-                command_info = await resp.text()
+                command_info = resp.text
                 logger.debug(command_info)
                 # check and publish updated state of device
                 await publish_status(tmp[1])
@@ -930,7 +930,7 @@ if __name__ == '__main__':
         metavar='log_level',
         nargs=1,
         dest='log_level',
-        default='warning',
+        default='debug',
         help='Log level debug|info|warning|error|fatal')
     parser.add_argument(
         '-disable-autodiscovery',
@@ -947,7 +947,7 @@ if __name__ == '__main__':
     numeric_level = getattr(logging, args.log_level[0].upper(), None)
     if not isinstance(numeric_level, int):
         numeric_level = 30
-    logging.basicConfig(level=numeric_level, format=formatter)
+    logging.basicConfig(level=0, format=formatter)
 
     # Loop forever
     # Any error will trigger new startup
