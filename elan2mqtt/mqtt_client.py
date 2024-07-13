@@ -17,7 +17,7 @@ class MqttClientBase(mqtt.Client):
     pending_message: list[Any] = []
 
     def __init__(self, name: str):
-        super().__init__("eLan2MQTT_{0}".format(name))
+        super().__init__(client_id=f"eLan2MQTT_{name}")
         self.mqtt_host = None
 
     def on_connect_func(self, client, userdata, flags, rc):

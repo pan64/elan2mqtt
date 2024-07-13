@@ -2,10 +2,12 @@ import datetime
 import hashlib
 import json
 import logging
+import traceback
 from logging import Logger
 
 import requests
 import websockets
+from requests import Session
 
 logger: Logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ class ElanClient:
         self.creds = {}
         self.elan_url: str = None
         self.logged_in: bool = False
-        self.session: requests.Session = None
+        self.session: Session = None
         self.cookie: str = None
         self.ws: websockets.WebSocketClientProtocol = None
 
@@ -93,7 +95,7 @@ class ElanClient:
         self.check_response(response)
         return response
 
-    def put(self, url: str, data=None) -> requests.Response:
+    def put(self, url: str, data=None) -> str: # requests.Response:
         self.connect()
         if url[0:4] != 'http':
             url = self.elan_url + url
@@ -101,7 +103,7 @@ class ElanClient:
         logger.debug("trying to put {}".format(url))
         response = self.session.put(url=url, headers=headers, data=data)
         self.check_response(response)
-        return response
+        return response.text
 
     @property
     def is_connected(self):
@@ -110,9 +112,24 @@ class ElanClient:
     def connect(self, force: bool = False):
         if self.cookie and not force:
             return
+        if force:
+            if self.session:
+                self.session.close()
+            self.session = None
+            self.ws_close()
         now = datetime.datetime.now()
         logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
-        self.get_login_cookie()
+        try:
+            self.get_login_cookie()
+        except BaseException as exc:
+            logger.error("cannot login to elan {}".format(str(exc)))
+            #print(f"Current {e.__class__}: {e}")
+            #print(f"Nested {e.__cause__.__class__}:{e.__cause__}")
+            while exc:
+                e = exc
+                logger.error("Exc: {}:{}".format(e.__class__.__name__,str(e)))
+                exc = e.__cause__
+            raise ElanException from exc
 
     async def ws_json(self) -> dict:
         self.connect()
@@ -135,11 +152,16 @@ class ElanClient:
         key = '1a0af0924dfcfc49af82f0d1e4eb59a681339978'
         login_obj = {"name": name, 'key': key}
         if not self.session:
-            self.session = requests.Session()
+            self.session = Session()
         if self.ws:
             self.ws.close()
             self.ws = None
-        response = self.session.post(self.elan_url + '/login', data=login_obj)
+        try:
+            response = self.session.post(self.elan_url + '/login', data=login_obj)
+        except BaseException as ose:
+            self.session.close()
+            self.session = None
+            raise
         self.cookie = response.cookies['AuthAPI']
         logger.debug("Cookie: AuthAPI={}".format(self.cookie))
         # headers = {'Cookie': "AuthAPI=a{}".format(self.cookie)}

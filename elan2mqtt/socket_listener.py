@@ -70,7 +70,7 @@ async def main():
     logger.info("Getting eLan device list")
     device_list: dict = elan_cli.get('/api/devices')
 
-    logger.info("Devices defined in eLan:\n" + str(device_list))
+    logger.info("Devices defined in eLan:\n{}".format(str(device_list)))
 
     mac = None
 
@@ -82,7 +82,7 @@ async def main():
             mac = str(info['device info']['address'])
         except KeyError:
             mac = str(info['id'])
-            logger.error("There is no MAC for device " + str(device_list[device]))
+            logger.error("There is no MAC for device {}".format(str(device_list[device])))
             device_list[device]['info']['device info']['address'] = mac
         except:
             logger.error("Unexpected error", exc_info=True)
@@ -90,7 +90,7 @@ async def main():
 
         u[device] = mac
 
-        logger.info("Setting up " + device_list[device]['url'])
+        logger.info("Setting up {}".format(device_list[device]['url']))
         # print("Setting up ", device_list[device]['url'], device_list[device])
 
         d[mac] = {
@@ -152,7 +152,7 @@ async def main():
         logger.error("SOCKET LISTENER: Client exception: {}".format(ce))
         time.sleep(5)
     except InvalidStatusCode as isc:
-        logger.error("websocket exception".format(str(isc)))
+        logger.error("websocket exception {}".format(str(isc)))
 
 
 if __name__ == '__main__':
@@ -168,11 +168,11 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    formatter = "[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s"
-    numeric_level: int = getattr(logging, args.log_level[0].upper(), None)
-    if not isinstance(numeric_level, int):
-        numeric_level = 30
-    logging.basicConfig(level=numeric_level, format=formatter)
+    FORMATTER = "[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s"
+    NUMERIC_LEVEL: int = getattr(logging, args.log_level[0].upper(), None)
+    if not isinstance(NUMERIC_LEVEL, int):
+        NUMERIC_LEVEL = 30
+    logging.basicConfig(level=NUMERIC_LEVEL, format=FORMATTER)
 
     # Loop forever
     # Any error will trigger new startup
@@ -181,7 +181,8 @@ if __name__ == '__main__':
             asyncio.get_event_loop().run_until_complete(main())
         except:
             logger.exception(
-                "SOCKET LISTENER: Something went wrong. But don't worry we will start over again."
+                "SOCKET LISTENER: Something went wrong. But don't worry we will start over again.",
+                exc_info=True
             )
             logger.error("But at first take some break. Sleeping for 5 s")
             time.sleep(5)
