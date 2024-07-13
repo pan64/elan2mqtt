@@ -31,7 +31,6 @@ import time
 
 import elan_client
 import mqtt_client
-from aiohttp import ClientResponse
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ async def main():
 
     # placeholder for message queue
 
-    async def publish_status(mac_d):
+    async def publish_status(mac_d: str) -> None:
         """Publish message to status topic. Topic syntax is: elan / mac / status """
         if mac_d in d:
             logger.info("Getting and publishing status for " + d[mac_d]['url'])
@@ -764,9 +763,10 @@ async def main():
                 # post command to device - warning there are no checks
                 logger.debug("processing: {}, {}".format(d[tmp[1]]['url'], data))
                 # data = json.loads(data)
-                resp: ClientResponse = elan_cli.put(d[tmp[1]]['url'], data=data)
+                #resp: Response = elan_cli.put(d[tmp[1]]['url'], data=data)
+                #command_info = resp.text
+                command_info: str = elan_cli.put(d[tmp[1]]['url'], data=data)
                 # print(resp)
-                command_info = resp.text
                 logger.debug(command_info)
                 # check and publish updated state of device
                 await publish_status(tmp[1])
@@ -954,9 +954,12 @@ if __name__ == '__main__':
     while True:
         try:
             asyncio.get_event_loop().run_until_complete(main())
+        except elan_client.ElanException:
+            logger.error("Cannot communicate with eLan")
         except:
             logger.exception(
                 "MAIN WORKER: Something went wrong. But don't worry we will start over again.",
                 exc_info=True)
-            logger.error("But at first take some break. Sleeping for 10 s")
-            time.sleep(10)
+
+        logger.error("But at first take some break. Sleeping for 10 s")
+        #time.sleep(1)
