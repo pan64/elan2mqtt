@@ -8,12 +8,17 @@
   "boot": "auto",
   "options": {
     "eLanURL": "http://192.168.3.136",
-    "MQTTserver": "mqtt://elan:elan@192.168.3.176",
+    "MQTTserver": "192.168.3.176",
+    "mqtt_user": "elan",
+    "mqtt_pass": "elan",
     "username": "user",
     "password": "user",
     "log_level": "trace",
     "disable_autodiscovery": "false",
-    "mqtt_id": "elan"
+    "mqtt_id": "elan",
+    "publish_interval": 300,
+    "discover_interval": 600,
+    "socket_interval": 60
   },
   "schema": {
     "eLanURL": "str",

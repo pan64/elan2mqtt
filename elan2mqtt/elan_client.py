@@ -3,47 +3,45 @@ import hashlib
 import json
 import logging
 import traceback
-from logging import Logger
+from typing import Optional
+
 
 import requests
-import websockets
+from websockets.asyncio.client import connect as ws_connect
 from requests import Session
 
-logger: Logger = logging.getLogger(__name__)
-
+logger: logging.Logger = logging.getLogger(__name__)
 
 class ElanException(BaseException):
     pass
-
 
 class ElanClient:
 
     def __init__(self):
 
         self.creds = {}
-        self.elan_url: str = None
+        self.elan_url: Optional[str] = None
         self.logged_in: bool = False
-        self.session: Session = None
-        self.cookie: str = None
-        self.ws: websockets.WebSocketClientProtocol = None
+        self.session: Optional[Session] = None
+        self.cookie: Optional[str] = None
 
-    def setup(self) -> None:
-        self.read_config()
+    def setup(self, data: dict) -> None:
+        try:
+            logger.info("loading config file")
+            self.elan_url = data["options"]["eLanURL"]
+            elan_user = data["options"]["username"]
+            elan_pass = data["options"]["password"]
+            key = hashlib.sha1(elan_pass.encode('utf-8')).hexdigest()
+            self.creds = {
+                'name': elan_user,
+                'key': key
+            }
 
-    def read_config(self) -> None:
-        logger.info("loading config file")
-        with open("config.json", "r") as json_file:
-            data = json.load(json_file)
-        self.elan_url = data["options"]["eLanURL"]
-        elan_user = data["options"]["username"]
-        elan_pass = data["options"]["password"]
-        key = hashlib.sha1(elan_pass.encode('utf-8')).hexdigest()
-        self.creds = {
-            'name': elan_user,
-            'key': key
-        }
-
-        logger.info("elan url: '{}', user: '{}', pass: '{}'".format(self.elan_url, elan_user, elan_pass))
+            logger.info("elan url: '{}', user: '{}', pass: '{}'".format(self.elan_url, elan_user, elan_pass))
+        except BaseException as be:
+            logger.error("read config exception occurred: " + str(be))
+            logger.error(be, exc_info=True)
+            raise
 
     def check_response(self, response: requests.Response) -> bool:
         """
@@ -116,7 +114,7 @@ class ElanClient:
             if self.session:
                 self.session.close()
             self.session = None
-            self.ws_close()
+            self.cookie = None
         now = datetime.datetime.now()
         logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
         try:
@@ -137,15 +135,9 @@ class ElanClient:
         data = ()
         ws_host = self.elan_url.replace("http://", "ws://") + '/api/ws'
         logger.debug("checking ws {}".format(ws_host))
-        async with websockets.connect(ws_host, extra_headers=headers, ping_timeout=1000) as ws:
+        async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
             data = json.loads(await ws.recv())
         return data
-
-    def ws_close(self):
-        if self.ws:
-            self.ws.close()
-            self.ws = None
-            self.cookie = None
 
     def get_login_cookie(self) -> None:
         name = "pan"
@@ -153,9 +145,6 @@ class ElanClient:
         login_obj = {"name": name, 'key': key}
         if not self.session:
             self.session = Session()
-        if self.ws:
-            self.ws.close()
-            self.ws = None
         try:
             response = self.session.post(self.elan_url + '/login', data=login_obj)
         except BaseException as ose:
