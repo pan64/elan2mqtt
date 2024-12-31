@@ -3,8 +3,6 @@ from mqtt_client import MqttClient
 
 import logging
 import json
-import asyncio
-
 
 elan: ElanClient
 mqtt: MqttClient
@@ -15,7 +13,6 @@ class Device:
     """one eLan device"""
     data: dict = {}
     def __init__(self, url: str):
-        data: dict = {}
 
         try:
             info = elan.get(url)

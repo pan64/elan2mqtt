@@ -2,8 +2,8 @@ import datetime
 import hashlib
 import json
 import logging
-import traceback
 from typing import Optional
+from config import Config
 
 
 import requests
@@ -25,7 +25,8 @@ class ElanClient:
         self.session: Optional[Session] = None
         self.cookie: Optional[str] = None
 
-    def setup(self, data: dict) -> None:
+    def setup(self, data: Config) -> None:
+        """configure this elan client"""
         try:
             logger.info("loading config file")
             self.elan_url = data["options"]["eLanURL"]
@@ -64,7 +65,8 @@ class ElanClient:
 
     def get(self, url: str) -> dict:
         """
-        :param url:
+        get data from the given device
+        :param url: device api endpoint
         :return: dict returned from url
         """
         self.connect()
@@ -84,6 +86,11 @@ class ElanClient:
         return response.json()
 
     def post(self, url: str, data=None) -> requests.Response:
+        """
+        post a message to elan
+        :param url: device api endpoint
+        :param data: command to rend to the device
+        """
         self.connect()
         if url[0:4] != 'http':
             url = self.elan_url + url
@@ -94,6 +101,11 @@ class ElanClient:
         return response
 
     def put(self, url: str, data=None) -> str: # requests.Response:
+        """
+        put a message to elan
+        :param url: device api endpoint
+        :param data: command to rend to the device
+        """
         self.connect()
         if url[0:4] != 'http':
             url = self.elan_url + url
@@ -105,9 +117,14 @@ class ElanClient:
 
     @property
     def is_connected(self):
+        """check if the elan host is online"""
         return self.logged_in
 
     def connect(self, force: bool = False):
+        """
+        connect to the elan host and get a valid cookie
+        :param force: get new cookie unconditionally
+        """
         if self.cookie and not force:
             return
         if force:
@@ -130,13 +147,15 @@ class ElanClient:
             raise ElanException from exc
 
     async def ws_json(self) -> dict:
+        """get a message on websocket"""
         self.connect()
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
-        data = ()
         ws_host = self.elan_url.replace("http://", "ws://") + '/api/ws'
-        logger.debug("checking ws {}".format(ws_host))
+        logger.debug("checking ws at {}".format(ws_host))
         async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
             data = json.loads(await ws.recv())
+            logger.debug("received {}".format(data))
+
         return data
 
     def get_login_cookie(self) -> None:
