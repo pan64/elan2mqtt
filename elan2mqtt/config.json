@@ -13,12 +13,12 @@
     "mqtt_pass": "elan",
     "username": "user",
     "password": "user",
-    "log_level": "trace",
+    "log_level": "info",
     "disable_autodiscovery": "false",
     "mqtt_id": "elan",
     "publish_interval": 300,
     "discover_interval": 600,
-    "socket_interval": 60
+    "socket_interval": 0
   },
   "schema": {
     "eLanURL": "str",
@@ -29,7 +29,8 @@
     "disable_autodiscovery": "bool?",
     "mqtt_id": "str?"
   },
-  "environment": {
-    "LOG_FORMAT": "{LEVEL}: {MESSAGE}"
+  "logging": {
+    "formatter": "[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s",
+    "log_level": "info"
   }
 }

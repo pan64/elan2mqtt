@@ -1,20 +1,21 @@
 import argparse
 import asyncio
-import json
 import logging
-import sys
 from typing import List
 import time
 
 import elan_client
 import mqtt_client
+from config import Config
 
 import device
 from device import Device
+from asyncio import TaskGroup
 
 logger = logging.getLogger(__name__)
 
-config_data: dict = {}
+config_data: Config
+
 elan: elan_client.ElanClient = elan_client.ElanClient()
 mqtt: mqtt_client.MqttClient = mqtt_client.MqttClient("main")
 
@@ -23,22 +24,29 @@ device.mqtt = mqtt
 
 devices: List[Device] = []
 device_hash: dict[str: Device] = {}
+device_addr_hash: dict[str: Device] = {}
 
 
-async def read_config() -> None:
+def read_config() -> None:
+    """
+    read the common config file into a dict
+    """
     logger.info("loading config file")
     global config_data
 
     try:
-        with open("config.json", "r", encoding="utf8") as json_file:
-            config_data = json.load(json_file)
+        config_data = Config("config.json")
     except BaseException as be:
         logger.error("read config exception occurred")
         logger.error(be, exc_info=True)
         config_data = {}
         raise
 
+
 def get_devices():
+    """
+    get list of available devices from elan
+    """
     global devices
     global elan
     global device_hash
@@ -48,9 +56,14 @@ def get_devices():
         dev = Device(d["url"])
         devices.append(dev)
         device_hash[dev.id] = dev
+        device_addr_hash[str(dev.data['device info']['address'])] = dev
     mqtt_client.device_hash = device_hash
 
+
 async def publish_all():
+    """
+    send general publish state messages to mqtt in loop
+    """
     last_publish = 0
     while True:
         needed = last_publish + config_data['options']['publish_interval'] - time.time()
@@ -61,7 +74,11 @@ async def publish_all():
             await dev.publish()
         last_publish = time.time()
 
+
 async def discover_all():
+    """
+    send discover messages to mqtt in loop
+    """
     last_discover = 0
     while True:
         needed = last_discover + config_data['options']['discover_interval'] - time.time()
@@ -73,7 +90,11 @@ async def discover_all():
             await dev.discover()
         last_discover = time.time()
 
+
 async def elan_ws():
+    """
+    elan websocket listener loop
+    """
     last_socket = 0
     while True:
         needed = last_socket + config_data['options']['socket_interval'] - time.time()
@@ -90,18 +111,25 @@ async def elan_ws():
             logger.error(be, exc_info=True)
         last_socket = time.time()
 
-async def process_event(mac: str, payload: str):
-    if mac in device_hash:
-        await device_hash[mac].process_command(payload)
 
-def subscribe_all():
-    asyncio.create_task(mqtt.listen("eLan/+/command", process_event))
-
+async def process_event(address: str, payload: str):
+    """
+    handle event on the given device
+    :param address: address of the device
+    :param payload: command to process
+    """
+    if address in device_addr_hash:
+        await device_addr_hash[address].process_command(payload)
+    else:
+        logger.error("process_event error occurred")
+        logger.error(address)
+        logger.error(payload)
+        logger.error(device_hash)
 
 
 async def main():
     global logger
-    await read_config()
+    read_config()
     elan.setup(config_data)
     mqtt.setup(config_data)
     mqtt.connect()
@@ -109,13 +137,17 @@ async def main():
 
     logger.info("{} devices have been found in eLan".format(len(devices)))
 
-    asyncio.create_task(publish_all())
-    if config_data['options']['disable_autodiscovery'] == False:
-        asyncio.create_task(discover_all())
-    asyncio.create_task(elan_ws())
-    subscribe_all()
+    async with TaskGroup() as group:
+        group.create_task(publish_all(), name="publish")
+        if config_data['options']['disable_autodiscovery'] == False:
+            group.create_task(discover_all(), name="discover")
+        group.create_task(elan_ws(), name="websocket")
+        group.create_task(mqtt.listen("eLan/+/command", process_event), name="subscribe")
+
+        logger.info("all tasks have been created {}".format(asyncio.all_tasks()))
 
     while True:
+        logger.info("running tasks: {}".format(len(asyncio.all_tasks())))
         await asyncio.sleep(10)
 
 
@@ -132,42 +164,23 @@ def str2bool(v) -> bool:
 
 if __name__ == '__main__':
     # parse arguments
-    parser = argparse.ArgumentParser(description='Process some arguments.')
-    parser.add_argument(
-        '-log-level',
-        metavar='log_level',
-        nargs=1,
-        dest='log_level',
-        default='debug',
-        help='Log level debug|info|warning|error|fatal')
-    parser.add_argument(
-        '-disable-autodiscovery',
-        metavar='disable_autodiscovery',
-        nargs='?',
-        dest='disable_autodiscovery',
-        default=False,
-        type=str2bool,
-        help='Disable autodiscovery True|False')
+    read_config()
 
-    args = parser.parse_args()
-
-    formatter = "[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s"
-    numeric_level = getattr(logging, args.log_level[0].upper(), None)
+    formatter = config_data["logging"]["formatter"]
+    log_level = config_data["logging"]["log_level"]
+    numeric_level = getattr(logging, log_level.upper(), None)
     if not isinstance(numeric_level, int):
         numeric_level = 30
-    logging.basicConfig(level=0, format=formatter)
+    logging.basicConfig(level=numeric_level, format=formatter)
 
     # Loop forever
     # Any error will trigger new startup
     while True:
         try:
             asyncio.run(main())
-        except elan_client.ElanException:
-            logger.error("Cannot communicate with eLan")
         except:
             logger.exception(
                 "MAIN WORKER: Something went wrong. But don't worry we will start over again.",
                 exc_info=True)
 
         logger.error("But at first take some break. Sleeping for 10 s")
-        sys.exit()
