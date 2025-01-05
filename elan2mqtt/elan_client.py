@@ -127,11 +127,10 @@ class ElanClient:
         """
         if self.cookie and not force:
             return
-        if force:
-            if self.session:
-                self.session.close()
-            self.session = None
-            self.cookie = None
+        if self.session:
+            self.session.close()
+        self.session = None
+        self.cookie = None
         now = datetime.datetime.now()
         logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
         try:
@@ -152,11 +151,15 @@ class ElanClient:
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         ws_host = self.elan_url.replace("http://", "ws://") + '/api/ws'
         logger.debug("checking ws at {}".format(ws_host))
-        async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
-            data = json.loads(await ws.recv())
-            logger.debug("received {}".format(data))
-
-        return data
+        try:
+            async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
+                data = json.loads(await ws.recv())
+                logger.debug("received {}".format(data))
+                return data
+        except BaseException as exc:
+            logger.error("websocket error: {}".format(str(exc)))
+            self.cookie = None
+            raise
 
     def get_login_cookie(self) -> None:
         name = "pan"

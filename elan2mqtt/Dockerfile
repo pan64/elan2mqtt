@@ -21,6 +21,7 @@ COPY elan2mqtt.py /$ARCHIVE/elan2mqtt.py
 COPY elan_client.py /$ARCHIVE/elan_client.py
 COPY mqtt_client.py /$ARCHIVE/mqtt_client.py
 COPY device.py /$ARCHIVE/device.py
+COPY config.py /$ARCHIVE/config.py
 # COPY config.json /$ARCHIVE/config.json
 
 # Let's set it to our add-on persistent data directory.
