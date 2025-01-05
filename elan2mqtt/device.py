@@ -78,7 +78,7 @@ class Device:
                     'state_value_template':
                         '{%- if value_json.on -%}{"on":true}{%- else -%}{"on":false}{%- endif -%}'
                 }
-                ddd['homeassistant/light/' + self.data['mac'] + '/config'] = bytearray(json.dumps(discovery), 'utf-8')
+                ddd['homeassistant/light/' + self.data['mac'] + '/config'] = json.dumps(discovery)
                 self.data['discovery'] = ddd
                 return
 
@@ -112,7 +112,7 @@ class Device:
                             self.data['actions info']['brightness']
                             ['max']) + ') | int }}'
                 }
-                ddd['homeassistant/light/' + self.data['mac'] + '/config'] = bytearray(json.dumps(discovery), 'utf-8')
+                ddd['homeassistant/light/' + self.data['mac'] + '/config'] = json.dumps(discovery)
                 self.data['discovery'] = ddd
                 return
 
@@ -152,7 +152,7 @@ class Device:
                     'value_template':
                         '{%- if value_json.on -%}on{%- else -%}off{%- endif -%}'
                 }
-                ddd['homeassistant/switch/' + self.data['mac'] + '/config'] = bytearray(json.dumps(discovery), 'utf-8')
+                ddd['homeassistant/switch/' + self.data['mac'] + '/config'] = json.dumps(discovery)
                 self.data['discovery'] = ddd
                 return
 
@@ -182,7 +182,7 @@ class Device:
                 'value_template': '{{ value_json["temperature IN"] }}',
                 'unit_of_measurement': '°C'
             }
-            ddd['homeassistant/sensor/' + self.data['mac'] + '/IN/config'] = bytearray(json.dumps(discovery), 'utf-8')
+            ddd['homeassistant/sensor/' + self.data['mac'] + '/IN/config'] = json.dumps(discovery)
 
             discovery = {
                 'name': self.data['device info']['label'] + '-OUT',
@@ -200,7 +200,7 @@ class Device:
                 'value_template': '{{ value_json["temperature OUT"] }}',
                 'unit_of_measurement': '°C'
             }
-            ddd['homeassistant/sensor/' + self.data['mac'] + '/OUT/config'] = bytearray(json.dumps(discovery), 'utf-8')
+            ddd['homeassistant/sensor/' + self.data['mac'] + '/OUT/config'] = json.dumps(discovery)
             self.data['discovery'] = ddd
             return
         #
@@ -229,7 +229,7 @@ class Device:
                 'value_template': '{{ value_json["temperature IN"] }}',
                 'unit_of_measurement': '°C'
             }
-            ddd['homeassistant/sensor/' + self.data['mac'] + '/IN/config'] = bytearray(json.dumps(discovery), 'utf-8')
+            ddd['homeassistant/sensor/' + self.data['mac'] + '/IN/config'] = json.dumps(discovery)
 
             discovery = {
                 'name': self.data['device info']['label'] + '-OUT',
@@ -247,7 +247,7 @@ class Device:
                 'value_template': '{{ value_json["temperature OUT"] }}',
                 'unit_of_measurement': '°C'
             }
-            ddd['homeassistant/sensor/' + self.data['mac'] + '/OUT/config'] = bytearray(json.dumps(discovery), 'utf-8')
+            ddd['homeassistant/sensor/' + self.data['mac'] + '/OUT/config'] = json.dumps(discovery)
             self.data['discovery'] = ddd
             return
         #
@@ -309,7 +309,7 @@ class Device:
             if icon != '':
                 discovery['icon'] = icon
 
-            ddd['homeassistant/sensor/' + self.data['mac'] + '/config'] = bytearray(json.dumps(discovery), 'utf-8')
+            ddd['homeassistant/sensor/' + self.data['mac'] + '/config'] = json.dumps(discovery)
 
 
             # Silently expect that all detectors provide "battery" status
@@ -331,7 +331,7 @@ class Device:
                     '{%- if value_json.battery -%}100{%- else -%}0{%- endif -%}'
                 #                    'command_topic': self.data['control_topic']
             }
-            ddd['homeassistant/sensor/' + self.data['mac'] + '/battery/config'] = bytearray(json.dumps(discovery), 'utf-8')
+            ddd['homeassistant/sensor/' + self.data['mac'] + '/battery/config'] = json.dumps(discovery)
 
             # START - RFWD window/door detector
             if (self.data['device info']['product type'] == 'RFWD-100') or (
@@ -359,7 +359,7 @@ class Device:
                         '{%- if value_json.alarm -%}on{%- else -%}off{%- endif -%}'
                     #                    'command_topic': self.data['control_topic']
                 }
-                ddd['homeassistant/sensor/' + self.data['mac'] + '/alarm/config'] = bytearray(json.dumps(discovery), 'utf-8')
+                ddd['homeassistant/sensor/' + self.data['mac'] + '/alarm/config'] = json.dumps(discovery)
 
             if self.data['device info']['product type'] == 'RFWD-100':
                 # Tamper
@@ -384,7 +384,7 @@ class Device:
                     #                    'command_topic': self.data['control_topic']
                 }
 
-                ddd['homeassistant/sensor/' + self.data['mac'] + '/tamper/config'] = bytearray(json.dumps(discovery), 'utf-8')
+                ddd['homeassistant/sensor/' + self.data['mac'] + '/tamper/config'] = json.dumps(discovery)
 
 
                 # Automat
@@ -405,7 +405,7 @@ class Device:
                         '{%- if value_json.automat -%}on{%- else -%}off{%- endif -%}'
                     #                    'command_topic': self.data['control_topic']
                 }
-                ddd['homeassistant/sensor/' + self.data['mac'] + '/automat/config'] = bytearray(json.dumps(discovery), 'utf-8')
+                ddd['homeassistant/sensor/' + self.data['mac'] + '/automat/config'] = json.dumps(discovery)
 
 
                 # Disarm
@@ -426,13 +426,13 @@ class Device:
                         '{%- if value_json.disarm -%}on{%- else -%}off{%- endif -%}'
                     #                    'command_topic': self.data['control_topic']
                 }
-                ddd['homeassistant/sensor/' + self.data['mac'] + '/disarm/config'] = bytearray(json.dumps(discovery), 'utf-8')
+                ddd['homeassistant/sensor/' + self.data['mac'] + '/disarm/config'] = json.dumps(discovery)
                 self.data['discovery'] = ddd
 
     async def publish(self):
         try:
             resp = elan.get(self.url + '/state')
-            await mqtt.publish(self.status_topic, bytearray(json.dumps(resp), 'utf-8'))
+            await mqtt.publish(self.status_topic, json.dumps(resp))
             logger.info("{} has been published".format(self.url))
         except BaseException as be:
             logger.error("publishing of {} failed {}".format(self.url, str(be)))

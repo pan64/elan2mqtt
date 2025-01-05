@@ -101,13 +101,11 @@ async def elan_ws():
         if needed > 0:
             logger.info("waiting {} secs for the next websocket".format(needed))
             await asyncio.sleep(needed)
-        data = await elan.ws_json()
         try:
+            data = await elan.ws_json()
             await device_hash[data['device']].publish()
         except BaseException as be:
             logger.error("websocket error occurred")
-            logger.error(data)
-            logger.error(device_hash)
             logger.error(be, exc_info=True)
         last_socket = time.time()
 

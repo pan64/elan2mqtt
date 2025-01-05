@@ -39,7 +39,7 @@ class MqttClient:
         """
         async with self.lock:
             async with self.client as client:
-                await client.publish(topic, payload)
+                await client.publish(topic, bytearray(payload, 'utf-8'))
             logger.info("topic '{}' is published '{}'".format(topic, payload))
 
     async def listen(self, topic: str, callback):
