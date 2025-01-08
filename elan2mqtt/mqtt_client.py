@@ -49,7 +49,7 @@ class MqttClient:
         :param callback: callback function to handle events
         """
 #        async with self.lock:
-        logger.info("listening on {}".format(topic))
+        logger.info("listening on '{}'".format(topic))
 
         async with aiomqtt.Client(hostname=self.url, username=self.username, password=self.password, logger=logger) as client:
             await client.subscribe(topic)

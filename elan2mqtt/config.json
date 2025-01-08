@@ -30,7 +30,7 @@
     "mqtt_id": "str?"
   },
   "logging": {
-    "formatter": "[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s",
+    "formatter": "%(asctime)s %(filename)s:%(lineno)d %(coproc)s/%(levelname)s - %(message)s",
     "log_level": "info"
   }
 }

@@ -7,7 +7,7 @@ import time
 import elan_client
 import mqtt_client
 from config import Config
-
+from elan_logger import set_logger
 import device
 from device import Device
 from asyncio import TaskGroup
@@ -39,7 +39,6 @@ def read_config() -> None:
     except BaseException as be:
         logger.error("read config exception occurred")
         logger.error(be, exc_info=True)
-        config_data = {}
         raise
 
 
@@ -68,7 +67,7 @@ async def publish_all():
     while True:
         needed = last_publish + config_data['options']['publish_interval'] - time.time()
         if needed > 0:
-            logger.info("waiting {} secs for the next publish".format(needed))
+            logger.info("waiting {} secs for the next publish".format(round(needed)))
             await asyncio.sleep(needed)
         for dev in devices:
             await dev.publish()
@@ -83,7 +82,7 @@ async def discover_all():
     while True:
         needed = last_discover + config_data['options']['discover_interval'] - time.time()
         if needed > 0:
-            logger.info("waiting {} secs for the next discover".format(needed))
+            logger.info("waiting {} secs for the next discover".format(round(needed)))
             await asyncio.sleep(needed)
         dev: Device
         for dev in devices:
@@ -99,7 +98,7 @@ async def elan_ws():
     while True:
         needed = last_socket + config_data['options']['socket_interval'] - time.time()
         if needed > 0:
-            logger.info("waiting {} secs for the next websocket".format(needed))
+            logger.info("waiting {} secs for the next websocket".format(round(needed)))
             await asyncio.sleep(needed)
         try:
             data = await elan.ws_json()
@@ -127,6 +126,8 @@ async def process_event(address: str, payload: str):
 
 async def main():
     global logger
+    asyncio.current_task().set_name("main")
+
     read_config()
     elan.setup(config_data)
     mqtt.setup(config_data)
@@ -163,13 +164,7 @@ def str2bool(v) -> bool:
 if __name__ == '__main__':
     # parse arguments
     read_config()
-
-    formatter = config_data["logging"]["formatter"]
-    log_level = config_data["logging"]["log_level"]
-    numeric_level = getattr(logging, log_level.upper(), None)
-    if not isinstance(numeric_level, int):
-        numeric_level = 30
-    logging.basicConfig(level=numeric_level, format=formatter)
+    set_logger(config_data)
 
     # Loop forever
     # Any error will trigger new startup
