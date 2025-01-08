@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir -r /$ARCHIVE/requirements.txt
 # Copy data for add-on
 COPY run.sh /$ARCHIVE/run.sh
 COPY elan2mqtt.py /$ARCHIVE/elan2mqtt.py
+COPY elan_logger.py /$ARCHIVE/elan_logger.py
 COPY elan_client.py /$ARCHIVE/elan_client.py
 COPY mqtt_client.py /$ARCHIVE/mqtt_client.py
 COPY device.py /$ARCHIVE/device.py
