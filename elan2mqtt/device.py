@@ -12,8 +12,10 @@ logger: logging.Logger = logging.getLogger(__name__)
 class Device:
     """one eLan device"""
     data: dict = {}
-    def __init__(self, url: str):
 
+    @classmethod
+    def create(cls, url: str):
+        self = cls()
         try:
             info = elan.get(url)
 
@@ -31,7 +33,7 @@ class Device:
             info['url'] = url
             info["status_topic"] = 'eLan/' + mac + '/status'
             info["control_topic"] = 'eLan/' + mac + '/command'
-            
+
             if "product type" in info['device info']:
                 # placeholder for device type versus product type check
                 pass
@@ -43,15 +45,17 @@ class Device:
             logger.error(be, exc_info=True)
             raise
         self.data = info
-        
+
         self.set_discovery()
+
+        return self
 
     def __getattr__(self, item: str):
         if item in self.data:
             return self.data[item]
 
     def set_discovery(self):
-        ddd={}
+        ddd = {}
         if ('light' in self.data['device info']['type']) or (
                 'lamp' in self.data['device info']['type']) or (
                 self.data['device info']['product type'] == 'RFDA-11B'):
@@ -311,7 +315,6 @@ class Device:
 
             ddd['homeassistant/sensor/' + self.data['mac'] + '/config'] = json.dumps(discovery)
 
-
             # Silently expect that all detectors provide "battery" status
             # Battery
             discovery = {
@@ -386,7 +389,6 @@ class Device:
 
                 ddd['homeassistant/sensor/' + self.data['mac'] + '/tamper/config'] = json.dumps(discovery)
 
-
                 # Automat
                 discovery = {
                     'name': self.data['device info']['label'] + 'automat',
@@ -406,7 +408,6 @@ class Device:
                     #                    'command_topic': self.data['control_topic']
                 }
                 ddd['homeassistant/sensor/' + self.data['mac'] + '/automat/config'] = json.dumps(discovery)
-
 
                 # Disarm
                 discovery = {
@@ -429,24 +430,26 @@ class Device:
                 ddd['homeassistant/sensor/' + self.data['mac'] + '/disarm/config'] = json.dumps(discovery)
                 self.data['discovery'] = ddd
 
-    async def publish(self):
+    def publish(self):
+        """publish device state to mqtt"""
         try:
             resp = elan.get(self.url + '/state')
-            await mqtt.publish(self.status_topic, json.dumps(resp))
+            mqtt.publish(self.status_topic, json.dumps(resp), "status")
             logger.info("{} has been published".format(self.url))
         except BaseException as be:
             logger.error("publishing of {} failed {}".format(self.url, str(be)))
 
-
     async def discover(self):
+        """publish device discovery info to mqtt"""
         if "discovery" not in self.data:
-            logger.warning("no discovery for {}".format(self.data['url']))
+            logger.warning("no discovery data for {} available".format(self.data['url']))
             return
         for topic, data in self.discovery.items():
-            await mqtt.publish(topic, data)
+            mqtt.publish(topic, data, "discovery")
         logger.info("{} has been set to discovered".format(self.url))
 
-    async def process_command(self, data):
+    async def process_command(self, data: str):
+        """send command to elan and mqtt"""
         # print("Got message:", topic, data)
         try:
 
@@ -462,4 +465,3 @@ class Device:
             await self.publish()
         except BaseException as be:
             logger.error("publishing of {} failed {}".format(self.url, str(be)))
-

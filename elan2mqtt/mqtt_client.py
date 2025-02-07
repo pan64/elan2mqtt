@@ -1,9 +1,23 @@
 import asyncio
+from asyncio import Queue
+from pyexpat.errors import messages
 
 import aiomqtt
 import logging
 logger = logging.getLogger(__name__)
 from config import Config
+
+class PublishData:
+    def __init__(self, topic: str, payload: str, message: str):
+        """
+        init publish data struct
+        :param topic: topic
+        :param payload:payload
+        :param message:message
+        """
+        self.topic = topic
+        self.payload = payload
+        self.message = message
 
 class MqttClient:
 
@@ -14,6 +28,8 @@ class MqttClient:
     client: aiomqtt.Client
 
     lock = asyncio.Lock()
+
+    queue: Queue = Queue()
 
     def __init__(self, name: str):
         self.name = name
@@ -31,16 +47,22 @@ class MqttClient:
         self.client = aiomqtt.Client(hostname=self.url, username=self.username, password=self.password, logger=logger)
         logger.info("mqtt is connected to {}".format(self.url))
 
-    async def publish(self, topic: str, payload: str):
+    def publish(self, topic: str, payload: str, message: str):
         """
-        publish message
+        put publish message into queue
         :param topic: topic
         :param payload: payload
+        :param message: message
         """
-        async with self.lock:
+        self.queue.put_nowait(PublishData(topic, payload, message))
+
+    async def do_publish(self):
+        """ do the real publish, process the queue"""
+        while self.queue.qsize() > 0:
+            pdata: PublishData = await self.queue.get()
             async with self.client as client:
-                await client.publish(topic, bytearray(payload, 'utf-8'))
-            logger.info("topic '{}' is published '{}'".format(topic, payload))
+                await client.publish(pdata.topic, bytearray(pdata.payload, 'utf-8'))
+            logger.info("{}: topic '{}' is published '{}'".format(pdata.message, pdata.topic, pdata.payload))
 
     async def listen(self, topic: str, callback):
         """
