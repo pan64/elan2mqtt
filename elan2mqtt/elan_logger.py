@@ -1,28 +1,10 @@
 import asyncio
 import logging
 import sys
+from logging import LogRecord
 
 from config import Config
 
-class CustomAdapter(logging.LoggerAdapter):
-    """
-    This example adapter expects the passed in dict-like object to have a
-    'connid' key, whose value in brackets is prepended to the log message.
-    """
-    def process(self, msg, kwargs):
-        return '[%s] %s' % (self.extra['coproc'], asyncio.current_task().get_name()), kwargs
-
-class ContextFilter(logging.Filter):
-    """
-    This is a filter which injects contextual information into the log.
-
-    Rather than use actual contextual information, we just use random
-    data in this demo.
-    """
-
-    def filter(self, record):
-        #record.coproc = asyncio.current_task().get_name()
-        return True
 
 def set_logger(config: Config):
     formatter = config["logging"]["formatter"]
@@ -30,9 +12,13 @@ def set_logger(config: Config):
 
     old_factory = logging.getLogRecordFactory()
 
-    def record_factory(*args, **kwargs):
+    def record_factory(*args, **kwargs) -> LogRecord:
         record = old_factory(*args, **kwargs)
-        record.coproc = asyncio.current_task().get_name()
+        try:
+            ttt = asyncio.current_task()
+            record.coproc = ttt.get_name()
+        except:
+            record.coproc = "unknown"
         return record
 
     logging.setLogRecordFactory(record_factory)

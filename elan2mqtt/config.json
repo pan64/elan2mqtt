@@ -14,7 +14,7 @@
     "username": "user",
     "password": "user",
     "log_level": "info",
-    "disable_autodiscovery": "false",
+    "disable_autodiscovery": false,
     "mqtt_id": "elan",
     "publish_interval": 300,
     "discover_interval": 600,
@@ -31,6 +31,6 @@
   },
   "logging": {
     "formatter": "%(asctime)s %(filename)s:%(lineno)d %(coproc)s/%(levelname)s - %(message)s",
-    "log_level": "info"
+    "log_level": "debug"
   }
 }

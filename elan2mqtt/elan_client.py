@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import hashlib
 import json
@@ -16,6 +17,7 @@ class ElanException(BaseException):
     pass
 
 class ElanClient:
+    lock = asyncio.Lock()
 
     def __init__(self):
 
@@ -48,7 +50,7 @@ class ElanClient:
         """
         check if response is acceptable
         :param response:
-        :return: true/false
+        :return: true: ok, false: error
         """
         if response.status_code == 200:
             return True
@@ -77,9 +79,10 @@ class ElanClient:
         restart = False
         try:
             response = self.session.get(url=url, headers=headers)
+            restart = not self.check_response(response)
         except:
             restart = True
-        if restart or not self.check_response(response):
+        if restart:
             self.connect(True)
             response = self.session.get(url=url, headers=headers)
             self.check_response(response)
@@ -134,7 +137,8 @@ class ElanClient:
         now = datetime.datetime.now()
         logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
         try:
-            self.get_login_cookie()
+#            async with self.lock:
+                self.get_login_cookie()
         except BaseException as exc:
             logger.error("cannot login to elan {}".format(str(exc)))
             #print(f"Current {e.__class__}: {e}")
@@ -148,14 +152,21 @@ class ElanClient:
     async def ws_json(self) -> dict:
         """get a message on websocket"""
         self.connect()
+        # name = "pan"
+        # key = '1a0af0924dfcfc49af82f0d1e4eb59a681339978'
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
-        ws_host = self.elan_url.replace("http://", "ws://") + '/api/ws'
+        #headers = {"Authorization": f"Bearer {key}"}
+        ws_host = self.elan_url.replace("http://", f"ws://") + '/api/ws'
         logger.debug("checking ws at {}".format(ws_host))
         try:
             async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
                 data = json.loads(await ws.recv())
                 logger.debug("received {}".format(data))
                 return data
+        except asyncio.exceptions.CancelledError as ece:
+            logger.error("websocket cancelled: {}".format(str(ece)))
+            self.cookie = None
+            # raise
         except BaseException as exc:
             logger.error("websocket error: {}".format(str(exc)))
             self.cookie = None
@@ -178,4 +189,4 @@ class ElanClient:
         # headers = {'Cookie': "AuthAPI=a{}".format(self.cookie)}
         # self.ws = websockets.connect(self.elan_url.replace("http","ws") + '/api/ws', extra_headers=headers
         #                                     ,ping_timeout=1000)
-        logger.info("Socket connected")
+        logger.info("eLan is connected")

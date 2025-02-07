@@ -23,8 +23,8 @@ device.elan = elan
 device.mqtt = mqtt
 
 devices: List[Device] = []
-device_hash: dict[str: Device] = {}
-device_addr_hash: dict[str: Device] = {}
+device_hash: dict[str, Device] = {}
+device_addr_hash: dict[str, Device] = {}
 
 
 def read_config() -> None:
@@ -50,13 +50,16 @@ def get_devices():
     global elan
     global device_hash
     device_list: dict = elan.get('/api/devices')
-    print(device_list)
     for d in device_list.values():
-        dev = Device(d["url"])
+        dev = Device.create(d["url"])
         devices.append(dev)
         device_hash[dev.id] = dev
         device_addr_hash[str(dev.data['device info']['address'])] = dev
     mqtt_client.device_hash = device_hash
+    logger.warning(device_list)
+    logger.warning(device_hash.keys())
+    logger.warning(device_addr_hash.keys())
+
 
 
 async def publish_all():
@@ -70,8 +73,17 @@ async def publish_all():
             logger.info("waiting {} secs for the next publish".format(round(needed)))
             await asyncio.sleep(needed)
         for dev in devices:
-            await dev.publish()
+            dev.publish()
         last_publish = time.time()
+
+async def publisher():
+    """
+    process mqtt publish queue
+    """
+    last_publish = 0
+    while True:
+        await mqtt.do_publish()
+        await asyncio.sleep(1)
 
 
 async def discover_all():
@@ -94,6 +106,8 @@ async def elan_ws():
     """
     elan websocket listener loop
     """
+    global device_hash
+
     last_socket = 0
     while True:
         needed = last_socket + config_data['options']['socket_interval'] - time.time()
@@ -102,10 +116,20 @@ async def elan_ws():
             await asyncio.sleep(needed)
         try:
             data = await elan.ws_json()
-            await device_hash[data['device']].publish()
         except BaseException as be:
             logger.error("websocket error occurred")
             logger.error(be, exc_info=True)
+            continue
+        if not data:
+            continue
+        if not data['device'] in device_hash:
+            continue
+        try:
+            device_hash[data['device']].publish()
+        except BaseException as be:
+            logger.error("websocket publish error occurred {} {}".format(data, device_hash[data['device']].data))
+            logger.error(be, exc_info=True)
+
         last_socket = time.time()
 
 
@@ -141,6 +165,7 @@ async def main():
         if config_data['options']['disable_autodiscovery'] == False:
             group.create_task(discover_all(), name="discover")
         group.create_task(elan_ws(), name="websocket")
+        group.create_task(publisher(), name="mqtt")
         group.create_task(mqtt.listen("eLan/+/command", process_event), name="subscribe")
 
         logger.info("all tasks have been created {}".format(asyncio.all_tasks()))
@@ -151,6 +176,7 @@ async def main():
 
 
 def str2bool(v) -> bool:
+    """convert string to bool"""
     if isinstance(v, bool):
         return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
