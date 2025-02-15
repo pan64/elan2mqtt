@@ -3,6 +3,7 @@ import datetime
 import hashlib
 import json
 import logging
+import time
 from typing import Optional
 from config import Config
 
@@ -82,6 +83,7 @@ class ElanClient:
             restart = not self.check_response(response)
         except:
             restart = True
+            time.sleep(0.1)
         if restart:
             self.connect(True)
             response = self.session.get(url=url, headers=headers)
@@ -171,6 +173,7 @@ class ElanClient:
             logger.error("websocket error: {}".format(str(exc)))
             self.cookie = None
             raise
+        return {}
 
     def get_login_cookie(self) -> None:
         name = "pan"

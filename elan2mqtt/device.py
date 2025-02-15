@@ -462,6 +462,6 @@ class Device:
             # print(resp)
             logger.debug(command_info)
             # check and publish updated state of device
-            await self.publish()
+            self.publish()
         except BaseException as be:
             logger.error("publishing of {} failed {}".format(self.url, str(be)))

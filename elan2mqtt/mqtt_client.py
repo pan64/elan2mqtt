@@ -1,6 +1,5 @@
 import asyncio
 from asyncio import Queue
-from pyexpat.errors import messages
 
 import aiomqtt
 import logging
@@ -59,7 +58,7 @@ class MqttClient:
     async def do_publish(self):
         """ do the real publish, process the queue"""
         while self.queue.qsize() > 0:
-            pdata: PublishData = await self.queue.get()
+            pdata: PublishData = self.queue.get_nowait()
             async with self.client as client:
                 await client.publish(pdata.topic, bytearray(pdata.payload, 'utf-8'))
             logger.info("{}: topic '{}' is published '{}'".format(pdata.message, pdata.topic, pdata.payload))

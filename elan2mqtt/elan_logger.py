@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import sys
 from logging import LogRecord
 
 from config import Config
