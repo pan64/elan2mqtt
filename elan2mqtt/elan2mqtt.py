@@ -61,7 +61,6 @@ def get_devices():
     logger.warning(device_addr_hash.keys())
 
 
-
 async def publish_all():
     """
     send general publish state messages to mqtt in loop
@@ -75,6 +74,7 @@ async def publish_all():
         for dev in devices:
             dev.publish()
         last_publish = time.time()
+
 
 async def publisher():
     """
@@ -165,7 +165,7 @@ async def main():
         if config_data['options']['disable_autodiscovery'] == False:
             group.create_task(discover_all(), name="discover")
         group.create_task(elan_ws(), name="websocket")
-        group.create_task(publisher(), name="mqtt")
+        group.create_task(mqtt.do_publish(), name="mqtt")
         group.create_task(mqtt.listen("eLan/+/command", process_event), name="subscribe")
 
         logger.info("all tasks have been created {}".format(asyncio.all_tasks()))
