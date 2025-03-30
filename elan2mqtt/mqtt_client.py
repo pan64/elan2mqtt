@@ -57,7 +57,10 @@ class MqttClient:
 
     async def do_publish(self):
         """ do the real publish, process the queue"""
-        while self.queue.qsize() > 0:
+        while True:
+            if self.queue.empty():
+                await asyncio.sleep(10);
+                continue
             pdata: PublishData = self.queue.get_nowait()
             async with self.client as client:
                 await client.publish(pdata.topic, bytearray(pdata.payload, 'utf-8'))
