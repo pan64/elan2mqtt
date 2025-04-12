@@ -76,15 +76,6 @@ async def publish_all():
         last_publish = time.time()
 
 
-async def publisher():
-    """
-    process mqtt publish queue
-    """
-    last_publish = 0
-    while True:
-        await mqtt.do_publish()
-        await asyncio.sleep(1)
-
 
 async def discover_all():
     """
@@ -111,12 +102,13 @@ async def elan_ws():
     last_socket = 0
     while True:
         retry: bool = False
+        data: dict = {}
         needed = last_socket + config_data['options']['socket_interval'] - time.time()
         if needed > 0:
             logger.info("waiting {} secs for the next websocket".format(round(needed)))
             await asyncio.sleep(needed)
         try:
-            data = elan.ws_json()
+            data = await elan.ws_json()
         except BaseException as be:
             logger.error("websocket error occurred")
             logger.error(be, exc_info=True)
@@ -126,7 +118,8 @@ async def elan_ws():
         elif not data['device'] in device_hash:
             retry = True
         try:
-            device_hash[data['device']].publish()
+            if not retry:
+                device_hash[data['device']].publish()
         except BaseException as be:
             logger.error("websocket publish error occurred {} {}".format(data, device_hash[data['device']].data))
             logger.error(be, exc_info=True)
