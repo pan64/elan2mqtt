@@ -154,7 +154,7 @@ class ElanClient:
                 exc = e.__cause__
             raise ElanException from exc
 
-    def ws_json(self) -> dict:
+    async def ws_json(self) -> dict:
         """get a message on websocket"""
         self.connect()
         # name = "pan"
@@ -164,8 +164,8 @@ class ElanClient:
         ws_host = self.elan_url.replace("http://", f"ws://") + '/api/ws'
         logger.debug("checking ws at {}".format(ws_host))
         try:
-            with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
-                data = json.loads(ws.recv())
+            async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
+                data = json.loads(await ws.recv())
                 logger.debug("received {}".format(data))
                 return data
         except asyncio.exceptions.CancelledError as ece:
