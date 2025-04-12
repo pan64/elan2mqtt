@@ -110,25 +110,30 @@ async def elan_ws():
 
     last_socket = 0
     while True:
+        retry: bool = False
         needed = last_socket + config_data['options']['socket_interval'] - time.time()
         if needed > 0:
             logger.info("waiting {} secs for the next websocket".format(round(needed)))
             await asyncio.sleep(needed)
         try:
-            data = await elan.ws_json()
+            data = elan.ws_json()
         except BaseException as be:
             logger.error("websocket error occurred")
             logger.error(be, exc_info=True)
-            continue
+            retry = True
         if not data:
-            continue
-        if not data['device'] in device_hash:
-            continue
+            retry = True
+        elif not data['device'] in device_hash:
+            retry = True
         try:
             device_hash[data['device']].publish()
         except BaseException as be:
             logger.error("websocket publish error occurred {} {}".format(data, device_hash[data['device']].data))
             logger.error(be, exc_info=True)
+            retry = True
+
+        if retry:
+            await asyncio.sleep(1)
 
         last_socket = time.time()
 
