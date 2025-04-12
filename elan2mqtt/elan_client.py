@@ -5,6 +5,9 @@ import json
 import logging
 import time
 from typing import Optional
+
+from websockets import InvalidStatus
+
 from config import Config
 
 
@@ -151,7 +154,7 @@ class ElanClient:
                 exc = e.__cause__
             raise ElanException from exc
 
-    async def ws_json(self) -> dict:
+    def ws_json(self) -> dict:
         """get a message on websocket"""
         self.connect()
         # name = "pan"
@@ -161,14 +164,17 @@ class ElanClient:
         ws_host = self.elan_url.replace("http://", f"ws://") + '/api/ws'
         logger.debug("checking ws at {}".format(ws_host))
         try:
-            async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
-                data = json.loads(await ws.recv())
+            with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
+                data = json.loads(ws.recv())
                 logger.debug("received {}".format(data))
                 return data
         except asyncio.exceptions.CancelledError as ece:
             logger.error("websocket cancelled: {}".format(str(ece)))
             self.cookie = None
             # raise
+        except InvalidStatus as ise:
+            logger.error("websocket invalid status: {}".format(str(ise)))
+            self.cookie = None
         except BaseException as exc:
             logger.error("websocket error: {}".format(str(exc)))
             self.cookie = None
