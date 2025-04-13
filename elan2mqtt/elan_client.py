@@ -6,7 +6,7 @@ import logging
 import time
 from typing import Optional
 
-from websockets import InvalidStatus
+from websockets import InvalidStatus, ConnectionClosedError
 
 from config import Config
 
@@ -156,6 +156,7 @@ class ElanClient:
 
     async def ws_json(self) -> dict:
         """get a message on websocket"""
+        asyncio.current_task().name = "receiver"
         self.connect()
         # name = "pan"
         # key = '1a0af0924dfcfc49af82f0d1e4eb59a681339978'
@@ -175,10 +176,14 @@ class ElanClient:
         except InvalidStatus as ise:
             logger.error("websocket invalid status: {}".format(str(ise)))
             self.cookie = None
+        except ConnectionClosedError as cce:
+            logger.error("websocket connection closed: {}".format(str(cce)))
+            self.cookie = None
         except BaseException as exc:
             logger.error("websocket error: {}".format(str(exc)))
             self.cookie = None
             raise
+        await asyncio.sleep(0)
         return {}
 
     def get_login_cookie(self) -> None:

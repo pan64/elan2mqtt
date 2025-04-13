@@ -14,7 +14,7 @@
     "username": "user",
     "password": "user",
     "log_level": "info",
-    "disable_autodiscovery": "false",
+    "disable_autodiscovery": false,
     "mqtt_id": "elan",
     "publish_interval": 300,
     "discover_interval": 600,
