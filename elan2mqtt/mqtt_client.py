@@ -3,8 +3,9 @@ from asyncio import Queue
 
 import aiomqtt
 import logging
-logger = logging.getLogger(__name__)
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 class PublishData:
     def __init__(self, topic: str, payload: str, message: str):
