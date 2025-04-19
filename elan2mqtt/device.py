@@ -53,6 +53,7 @@ class Device:
     def __getattr__(self, item: str):
         if item in self.data:
             return self.data[item]
+        return None
 
     def set_discovery(self):
         ddd = {}

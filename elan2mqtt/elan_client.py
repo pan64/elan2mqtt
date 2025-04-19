@@ -80,7 +80,6 @@ class ElanClient:
             url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to get {}".format(url))
-        restart = False
         try:
             response = self.session.get(url=url, headers=headers)
             restart = not self.check_response(response)

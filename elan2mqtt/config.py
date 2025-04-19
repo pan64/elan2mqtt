@@ -24,7 +24,7 @@ class Config:
         """ get config data """
         if item in self.data:
             return self.data[item]
-        print(str)
+        return None
 
     def __getitem__(self, item):
         return self.data[item]
