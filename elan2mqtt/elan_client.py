@@ -161,7 +161,7 @@ class ElanClient:
         # key = '1a0af0924dfcfc49af82f0d1e4eb59a681339978'
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         #headers = {"Authorization": f"Bearer {key}"}
-        ws_host = self.elan_url.replace("http://", f"ws://") + '/api/ws'
+        ws_host = self.elan_url.replace("http://", "ws://") + '/api/ws'
         logger.debug("checking ws at {}".format(ws_host))
         try:
             async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
