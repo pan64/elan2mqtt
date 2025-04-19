@@ -4,20 +4,26 @@ from mqtt_client import MqttClient
 import logging
 import json
 
-elan: ElanClient
-mqtt: MqttClient
+
 logger: logging.Logger = logging.getLogger(__name__)
 
 
 class Device:
     """one eLan device"""
     data: dict = {}
+    elan: ElanClient = None
+    mqtt: MqttClient = None
+
+    @classmethod
+    def init(cls, elan: ElanClient, mqtt: MqttClient):
+        cls.elan = elan
+        cls.mqtt = mqtt
 
     @classmethod
     def create(cls, url: str):
         self = cls()
         try:
-            info = elan.get(url)
+            info = self.elan.get(url)
 
             if "address" in info['device info']:
                 mac = str(info['device info']['address'])
@@ -435,7 +441,7 @@ class Device:
         """publish device state to mqtt"""
         try:
             resp = elan.get(self.url + '/state')
-            mqtt.publish(self.status_topic, json.dumps(resp), "status")
+            self.mqtt.publish(self.status_topic, json.dumps(resp), "status")
             logger.info("{} has been published".format(self.url))
         except BaseException as be:
             logger.error("publishing of {} failed {}".format(self.url, str(be)))
@@ -446,7 +452,7 @@ class Device:
             logger.warning("no discovery data for {} available".format(self.data['url']))
             return
         for topic, data in self.discovery.items():
-            mqtt.publish(topic, data, "discovery")
+            self.mqtt.publish(topic, data, "discovery")
         logger.info("{} has been set to discovered".format(self.url))
 
     async def process_command(self, data: str):
@@ -459,7 +465,7 @@ class Device:
             # data = json.loads(data)
             #resp: Response = elan_cli.put(d[tmp[1]]['url'], data=data)
             #command_info = resp.text
-            command_info: str = elan.put(self.url, data=data)
+            command_info: str = self.elan.put(self.url, data=data)
             # print(resp)
             logger.debug(command_info)
             # check and publish updated state of device
