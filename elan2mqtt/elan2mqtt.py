@@ -19,9 +19,6 @@ config_data: Config
 elan: elan_client.ElanClient = elan_client.ElanClient()
 mqtt: mqtt_client.MqttClient = mqtt_client.MqttClient("main")
 
-device.elan = elan
-device.mqtt = mqtt
-
 devices: List[Device] = []
 device_hash: dict[str, Device] = {}
 device_addr_hash: dict[str, Device] = {}
@@ -153,6 +150,7 @@ async def main():
     read_config()
     elan.setup(config_data)
     mqtt.setup(config_data)
+    Device.init(elan, mqtt)
     mqtt.connect()
     get_devices()
 
