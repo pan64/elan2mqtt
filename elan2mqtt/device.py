@@ -440,7 +440,7 @@ class Device:
     def publish(self):
         """publish device state to mqtt"""
         try:
-            resp = elan.get(self.url + '/state')
+            resp = self.elan.get(self.url + '/state')
             self.mqtt.publish(self.status_topic, json.dumps(resp), "status")
             logger.info("{} has been published".format(self.url))
         except BaseException as be:

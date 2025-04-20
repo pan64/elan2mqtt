@@ -3,7 +3,6 @@ import datetime
 import hashlib
 import json
 import logging
-import time
 from typing import Optional
 
 from websockets import InvalidStatus, ConnectionClosedError
@@ -71,7 +70,7 @@ class ElanClient:
 
     def get(self, url: str) -> dict:
         """
-        get data from the given device
+        get data from the given address
         :param url: device api endpoint
         :return: dict returned from url
         """
@@ -80,17 +79,16 @@ class ElanClient:
             url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to get {}".format(url))
-        try:
-            response = self.session.get(url=url, headers=headers)
-            restart = not self.check_response(response)
-        except:
-            restart = True
-            time.sleep(0.1)
-        if restart:
-            self.connect(True)
-            response = self.session.get(url=url, headers=headers)
-            self.check_response(response)
-        return response.json()
+        for i in range(3):
+            try:
+                response = self.session.get(url=url, headers=headers)
+                if self.check_response(response):
+                    return response.json()
+                asyncio.sleep(0.1)
+                self.connect(True)
+            except BaseException as bee:
+                logger.error("trying to get failed (retrying #{}): {}".format(i, str(bee)))
+        return {}
 
     def post(self, url: str, data=None) -> requests.Response:
         """
