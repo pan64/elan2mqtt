@@ -8,7 +8,7 @@ import elan_client
 import mqtt_client
 from config import Config
 from elan_logger import set_logger
-import device
+
 from device import Device
 from asyncio import TaskGroup
 
@@ -24,15 +24,15 @@ device_hash: dict[str, Device] = {}
 device_addr_hash: dict[str, Device] = {}
 
 
-def read_config() -> None:
+def read_config() -> Config:
     """
     read the common config file into a dict
     """
     logger.info("loading config file")
-    global config_data
 
     try:
-        config_data = Config("config.json")
+        config = Config("config.json")
+        return config
     except BaseException as be:
         logger.error("read config exception occurred")
         logger.error(be, exc_info=True)
@@ -185,7 +185,7 @@ def str2bool(v) -> bool:
 
 if __name__ == '__main__':
     # parse arguments
-    read_config()
+    config_data = read_config()
     set_logger(config_data)
 
     # Loop forever

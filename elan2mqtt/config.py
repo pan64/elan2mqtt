@@ -10,7 +10,7 @@ class Config:
         :param filename: json file containing the parameter
         """
 
-        logger.info("loading config file")
+        logger.info("loading config file: '{}'".format(filename))
 
         try:
             with open(filename, "r", encoding="utf8") as json_file:

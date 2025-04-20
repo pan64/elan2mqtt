@@ -1,5 +1,6 @@
 import asyncio
 from asyncio import Queue
+from typing import Callable, Coroutine, Any
 
 import aiomqtt
 import logging
@@ -33,7 +34,6 @@ class MqttClient:
 
     def __init__(self, name: str):
         self.name = name
-        pass
 
     def setup(self, config: Config):
         """configure this mqtt client"""
@@ -67,7 +67,7 @@ class MqttClient:
                 await client.publish(pdata.topic, bytearray(pdata.payload, 'utf-8'))
             logger.info("{}: topic '{}' is published '{}'".format(pdata.message, pdata.topic, pdata.payload))
 
-    async def listen(self, topic: str, callback):
+    async def listen(self, topic: str, callback: Callable[[str, str], Coroutine[Any, Any, None]]):
         """
         listens to the subscribed topics
         :param topic: topic wildcard to listen to
