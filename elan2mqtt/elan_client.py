@@ -74,20 +74,21 @@ class ElanClient:
         :param url: device api endpoint
         :return: dict returned from url
         """
-        self.connect()
         if url[0:4] != 'http':
             url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to get {}".format(url))
+
+        reconnect = False
         for i in range(3):
             try:
+                self.connect(reconnect)
                 response = self.session.get(url=url, headers=headers)
                 if self.check_response(response):
                     return response.json()
-                asyncio.sleep(0.1)
-                self.connect(True)
             except BaseException as bee:
                 logger.error("trying to get failed (retrying #{}): {}".format(i, str(bee)))
+            reconnect = True
         return {}
 
     def post(self, url: str, data=None) -> requests.Response:

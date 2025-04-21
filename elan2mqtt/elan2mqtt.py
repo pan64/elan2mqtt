@@ -52,7 +52,7 @@ def get_devices():
         devices.append(dev)
         device_hash[dev.id] = dev
         device_addr_hash[str(dev.data['device info']['address'])] = dev
-    mqtt_client.device_hash = device_hash
+    # mqtt_client.device_hash = device_hash
     logger.warning(device_list)
     logger.warning(device_hash.keys())
     logger.warning(device_addr_hash.keys())
