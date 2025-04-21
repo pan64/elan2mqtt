@@ -20,7 +20,7 @@ class ElanException(BaseException):
     pass
 
 class ElanClient:
-    lock = asyncio.Lock()
+#    lock = asyncio.Lock()
 
     def __init__(self):
 
@@ -139,7 +139,7 @@ class ElanClient:
         now = datetime.datetime.now()
         logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
         try:
-            async with self.lock:
+        #    async with self.lock:
                 self.get_login_cookie()
         except BaseException as exc:
             logger.error("cannot login to elan {}".format(str(exc)))
@@ -191,6 +191,7 @@ class ElanClient:
         try:
             response = self.session.post(self.elan_url + '/login', data=login_obj)
         except BaseException as ose:
+            logger.error("login error: {}".format(str(ose)))
             self.session.close()
             self.session = None
             raise

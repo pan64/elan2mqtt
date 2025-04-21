@@ -112,7 +112,7 @@ async def elan_ws():
             retry = True
         if not data:
             retry = True
-        elif not data['device'] in device_hash:
+        elif data['device'] not in device_hash:
             retry = True
         try:
             if not retry:
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     while True:
         try:
             asyncio.run(main())
-        except:
+        except:  # noqa: E722
             logger.exception(
                 "MAIN WORKER: Something went wrong. But don't worry we will start over again.",
                 exc_info=True)
