@@ -16,7 +16,7 @@ def set_logger(config: Config):
         try:
             ttt = asyncio.current_task()
             record.coproc = ttt.get_name()
-        except:
+        except:  # noqa: E722
             record.coproc = "unknown"
         return record
 
