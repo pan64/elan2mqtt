@@ -139,7 +139,7 @@ class ElanClient:
         now = datetime.datetime.now()
         logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
         try:
-#            async with self.lock:
+            async with self.lock:
                 self.get_login_cookie()
         except BaseException as exc:
             logger.error("cannot login to elan {}".format(str(exc)))
@@ -153,7 +153,6 @@ class ElanClient:
 
     async def ws_json(self) -> dict:
         """get a message on websocket"""
-        asyncio.current_task().name = "receiver"
         self.connect()
         # name = "pan"
         # key = '1a0af0924dfcfc49af82f0d1e4eb59a681339978'
