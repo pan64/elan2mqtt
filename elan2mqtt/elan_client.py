@@ -3,6 +3,7 @@ import datetime
 import hashlib
 import json
 import logging
+from collections.abc import Callable
 from typing import Optional
 
 from websockets import InvalidStatus, ConnectionClosedError
@@ -152,7 +153,7 @@ class ElanClient:
                 exc = e.__cause__
             raise ElanException from exc
 
-    async def ws_json(self) -> dict:
+    async def ws_listen(self, publisher: Callable) -> None:
         """get a message on websocket"""
         self.connect()
         # name = "pan"
@@ -165,7 +166,7 @@ class ElanClient:
             async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
                 data = json.loads(await ws.recv())
                 logger.debug("received {}".format(data))
-                return data
+                publisher(data['device'])
         except asyncio.exceptions.CancelledError as ece:
             logger.error("websocket cancelled: {}".format(str(ece)))
             self.cookie = None
@@ -176,12 +177,14 @@ class ElanClient:
         except ConnectionClosedError as cce:
             logger.error("websocket connection closed: {}".format(str(cce)))
             self.cookie = None
+        except KeyError:
+            return
         except BaseException as exc:
             logger.error("websocket error: {}".format(str(exc)))
             self.cookie = None
             raise
         await asyncio.sleep(0)
-        return {}
+
 
     def get_login_cookie(self) -> None:
         name = "pan"

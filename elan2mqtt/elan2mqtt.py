@@ -1,8 +1,10 @@
 import argparse
 import asyncio
 import logging
+import threading
 from typing import List
 import time
+import sys
 
 import elan_client
 import mqtt_client
@@ -10,7 +12,7 @@ from config import Config
 from elan_logger import set_logger
 
 from device import Device
-from asyncio import TaskGroup
+from asyncio import TaskGroup, to_thread
 
 logger = logging.getLogger(__name__)
 
@@ -94,36 +96,26 @@ async def elan_ws():
     """
     elan websocket listener loop
     """
-    global device_hash
+
+    def publisher(device: str):
+        global device_hash
+
+        try:
+            device_hash[device].publish()
+        except KeyError:
+            pass
 
     last_socket = 0
     while True:
-        retry: bool = False
-        data: dict = {}
         needed = last_socket + config_data['options']['socket_interval'] - time.time()
         if needed > 0:
             logger.info("waiting {} secs for the next websocket".format(round(needed)))
             await asyncio.sleep(needed)
         try:
-            data = await elan.ws_json()
-        except BaseException as be:
-            logger.error("websocket error occurred")
-            logger.error(be, exc_info=True)
-            retry = True
-        if not data:
-            retry = True
-        elif data['device'] not in device_hash:
-            retry = True
-        try:
-            if not retry:
-                device_hash[data['device']].publish()
-        except BaseException as be:
-            logger.error("websocket publish error occurred {} {}".format(data, device_hash[data['device']].data))
-            logger.error(be, exc_info=True)
-            retry = True
-
-        if retry:
-            await asyncio.sleep(1)
+            await elan.ws_listen(publisher)
+        except:
+            logger.error("ws listener error")
+            raise
 
         last_socket = time.time()
 
@@ -142,6 +134,11 @@ async def process_event(address: str, payload: str):
         logger.error(payload)
         logger.error(device_hash)
 
+def _start_async():
+    loop = asyncio.new_event_loop()
+    threading.Thread(target=loop.run_forever).start()
+    return loop
+
 
 async def main():
     global logger
@@ -156,11 +153,14 @@ async def main():
 
     logger.info("{} devices have been found in eLan".format(len(devices)))
 
+    _loop = _start_async()
+    asyncio.run_coroutine_threadsafe(elan_ws(), _loop)
+
     async with TaskGroup() as group:
         group.create_task(publish_all(), name="publish")
         if not config_data['options']['disable_autodiscovery']:
             group.create_task(discover_all(), name="discover")
-        group.create_task(elan_ws(), name="websocket")
+        # group.create_task(asyncio.to_thread(elan_ws), name="websocket")
         group.create_task(mqtt.do_publish(), name="mqtt")
         group.create_task(mqtt.listen("eLan/+/command", process_event), name="subscribe")
 
@@ -193,6 +193,8 @@ if __name__ == '__main__':
     while True:
         try:
             asyncio.run(main())
+        except KeyboardInterrupt:
+            sys.exit(1)
         except:  # noqa: E722
             logger.exception(
                 "MAIN WORKER: Something went wrong. But don't worry we will start over again.",
