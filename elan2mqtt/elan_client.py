@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from typing import Optional
 
+import aiologic
 from websockets import InvalidStatus, ConnectionClosedError
 
 from config import Config
@@ -21,7 +22,7 @@ class ElanException(BaseException):
     pass
 
 class ElanClient:
-#    lock = asyncio.Lock()
+    lock = aiologic.Condition()
 
     def __init__(self):
 
@@ -77,13 +78,13 @@ class ElanClient:
         """
         if url[0:4] != 'http':
             url = self.elan_url + url
-        headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to get {}".format(url))
 
         reconnect = False
         for i in range(3):
             try:
                 self.connect(reconnect)
+                headers = {"Cookie": "AuthAPI={}".format(self.cookie)}
                 response = self.session.get(url=url, headers=headers)
                 if self.check_response(response):
                     return response.json()
@@ -132,17 +133,24 @@ class ElanClient:
         connect to the elan host and get a valid cookie
         :param force: get new cookie unconditionally
         """
-        if self.cookie and not force:
-            return
-        if self.session:
-            self.session.close()
-        self.session = None
-        self.cookie = None
-        now = datetime.datetime.now()
-        logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
+
         try:
-        #    async with self.lock:
-                self.get_login_cookie()
+            with self.lock:
+                if self.cookie and not force:
+                    return
+                now = datetime.datetime.now()
+                logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
+                if self.lock.lock.level < 2:
+                    if self.session:
+                        self.session.close()
+                    self.session = None
+                    self.cookie = None
+
+                    self.get_login_cookie()
+                    self.lock.notify_all()
+                else:
+                    logger.debug("waiting for the [re]connect to complete")
+                    self.lock.wait(timeout=10)
         except BaseException as exc:
             logger.error("cannot login to elan {}".format(str(exc)))
             #print(f"Current {e.__class__}: {e}")
@@ -163,8 +171,9 @@ class ElanClient:
         ws_host = self.elan_url.replace("http://", "ws://") + '/api/ws'
         logger.debug("checking ws at {}".format(ws_host))
         try:
-            async with ws_connect(ws_host, additional_headers=headers, ping_timeout=1000) as ws:
-                data = json.loads(await ws.recv())
+            async for ws in ws_connect(ws_host, additional_headers=headers, ping_timeout=1000):
+
+                data: dict = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
                 logger.debug("received {}".format(data))
                 publisher(data['device'])
         except asyncio.exceptions.CancelledError as ece:

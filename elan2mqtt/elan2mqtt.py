@@ -12,7 +12,7 @@ from config import Config
 from elan_logger import set_logger
 
 from device import Device
-from asyncio import TaskGroup, to_thread
+from asyncio import TaskGroup
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ async def discover_all():
         last_discover = time.time()
 
 
-async def elan_ws():
+async def elan_ws() -> None:
     """
     elan websocket listener loop
     """
@@ -144,12 +144,7 @@ async def main():
     global logger
     asyncio.current_task().set_name("main")
 
-    read_config()
-    elan.setup(config_data)
-    mqtt.setup(config_data)
-    Device.init(elan, mqtt)
     mqtt.connect()
-    get_devices()
 
     logger.info("{} devices have been found in eLan".format(len(devices)))
 
@@ -192,6 +187,12 @@ if __name__ == '__main__':
     # Any error will trigger new startup
     while True:
         try:
+            read_config()
+            elan.setup(config_data)
+            mqtt.setup(config_data)
+            Device.init(elan, mqtt)
+            get_devices()
+
             asyncio.run(main())
         except KeyboardInterrupt:
             sys.exit(1)
