@@ -1,12 +1,12 @@
-argparse
+argparse~=1.4.0
 paho-mqtt
 #dependencies
 multidict
 attrs
 yarl
 async_timeout
-requests
-websockets
+requests~=2.32.3
+websockets~=15.0.1
 #cchardet
 chardet
 #multidict==4.5.2
@@ -15,4 +15,5 @@ chardet
 #async_timeout>=3.0,<4.0
 aiosignal
 #aiohttp
-aiomqtt
+aiomqtt~=2.4.0
+aiologic~=0.14.0
