@@ -155,7 +155,7 @@ async def main():
         group.create_task(publish_all(), name="publish")
         if not config_data['options']['disable_autodiscovery']:
             group.create_task(discover_all(), name="discover")
-        # group.create_task(asyncio.to_thread(elan_ws), name="websocket")
+        group.create_task(asyncio.to_thread(elan_ws), name="websocket")
         group.create_task(mqtt.do_publish(), name="mqtt")
         group.create_task(mqtt.listen("eLan/+/command", process_event), name="subscribe")
 
