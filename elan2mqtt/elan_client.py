@@ -3,11 +3,13 @@ import datetime
 import hashlib
 import json
 import logging
+import time
 from collections.abc import Callable
 from typing import Optional
 
 import aiologic
 from websockets import InvalidStatus, ConnectionClosedError
+from websockets.legacy.handshake import check_response
 
 from config import Config
 
@@ -57,10 +59,10 @@ class ElanClient:
         :param response:
         :return: true: ok, false: error
         """
-        if response.status_code == 200:
+
+        logger.debug("check response code: {}, reason: {}".format(response.status_code, response.reason))
+        if response.ok:
             return True
-        logger.debug(response.status_code)
-        logger.debug(response.reason)
         result = response.json()
         response.close()
         if "error" in result:
@@ -84,10 +86,11 @@ class ElanClient:
         for i in range(3):
             try:
                 self.connect(reconnect)
-                headers = {"Cookie": "AuthAPI={}".format(self.cookie)}
-                response = self.session.get(url=url, headers=headers)
+                # headers = {"Cookie": "AuthAPI={}".format(self.cookie)}
+                response = self.session.get(url=url) # , headers=headers)
                 if self.check_response(response):
                     return response.json()
+                logger.debug("invalid response, retrying")
             except BaseException as bee:
                 logger.error("trying to get failed (retrying #{}): {}".format(i, str(bee)))
             reconnect = True
@@ -123,24 +126,21 @@ class ElanClient:
         self.check_response(response)
         return response.text
 
-    @property
-    def is_connected(self):
-        """check if the elan host is online"""
-        return self.logged_in
 
     def connect(self, force: bool = False):
         """
         connect to the elan host and get a valid cookie
         :param force: get new cookie unconditionally
         """
-
         try:
             with self.lock:
                 if self.cookie and not force:
+                    logger.debug("eLan has been already connected")
                     return
                 now = datetime.datetime.now()
                 logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
                 if self.lock.lock.level < 2:
+                    logger.debug("first lock, connecting")
                     if self.session:
                         self.session.close()
                     self.session = None
@@ -196,13 +196,15 @@ class ElanClient:
 
 
     def get_login_cookie(self) -> None:
-        name = "pan"
-        key = '1a0af0924dfcfc49af82f0d1e4eb59a681339978'
+        name = self.creds.get("name")
+        key = self.creds.get("key")
         login_obj = {"name": name, 'key': key}
         if not self.session:
             self.session = Session()
+            self.session.verify = True
         try:
             response = self.session.post(self.elan_url + '/login', data=login_obj)
+            self.check_response(response)
         except BaseException as ose:
             logger.error("login error: {}".format(str(ose)))
             self.session.close()
@@ -213,4 +215,5 @@ class ElanClient:
         # headers = {'Cookie': "AuthAPI=a{}".format(self.cookie)}
         # self.ws = websockets.connect(self.elan_url.replace("http","ws") + '/api/ws', extra_headers=headers
         #                                     ,ping_timeout=1000)
+
         logger.info("eLan is connected")
