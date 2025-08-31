@@ -96,7 +96,6 @@ async def elan_ws() -> None:
     """
     elan websocket listener loop
     """
-
     def publisher(device: str):
         global device_hash
 
@@ -113,8 +112,8 @@ async def elan_ws() -> None:
             await asyncio.sleep(needed)
         try:
             await elan.ws_listen(publisher)
-        except:
-            logger.error("ws listener error")
+        except BaseException as e:
+            logger.error("ws listener error", e)
             raise
 
         last_socket = time.time()
@@ -136,9 +135,11 @@ async def process_event(address: str, payload: str):
 
 def _start_async():
     loop = asyncio.new_event_loop()
-    threading.Thread(target=loop.run_forever).start()
+    threading.Thread(target=elan_ws_runner, args=(loop, )).start()
     return loop
 
+def elan_ws_runner(_loop):
+    asyncio.run_coroutine_threadsafe(elan_ws(), _loop)
 
 async def main():
     global logger
@@ -149,13 +150,13 @@ async def main():
     logger.info("{} devices have been found in eLan".format(len(devices)))
 
     _loop = _start_async()
-    asyncio.run_coroutine_threadsafe(elan_ws(), _loop)
+
 
     async with TaskGroup() as group:
         group.create_task(publish_all(), name="publish")
         if not config_data['options']['disable_autodiscovery']:
             group.create_task(discover_all(), name="discover")
-        group.create_task(asyncio.to_thread(elan_ws), name="websocket")
+#        group.create_task(asyncio.to_thread(elan_ws), name="websocket")
         group.create_task(mqtt.do_publish(), name="mqtt")
         group.create_task(mqtt.listen("eLan/+/command", process_event), name="subscribe")
 
