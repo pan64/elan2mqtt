@@ -3,20 +3,16 @@ import datetime
 import hashlib
 import json
 import logging
-import time
 from collections.abc import Callable
 from typing import Optional
 
 import aiologic
 from websockets import InvalidStatus, ConnectionClosedError
-from websockets.legacy.handshake import check_response
-
 from config import Config
 
 
-import requests
 from websockets.asyncio.client import connect as ws_connect
-from requests import Session
+import requests
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -31,7 +27,6 @@ class ElanClient:
         self.creds = {}
         self.elan_url: Optional[str] = None
         self.logged_in: bool = False
-        self.session: Optional[Session] = None
         self.cookie: Optional[str] = None
 
     def setup(self, data: Config) -> None:
@@ -86,8 +81,8 @@ class ElanClient:
         for i in range(3):
             try:
                 self.connect(reconnect)
-                # headers = {"Cookie": "AuthAPI={}".format(self.cookie)}
-                response = self.session.get(url=url) # , headers=headers)
+                headers = {"Cookie": "AuthAPI={}".format(self.cookie)}
+                response = requests.get(url=url , headers=headers)
                 if self.check_response(response):
                     return response.json()
                 logger.debug("invalid response, retrying")
@@ -107,7 +102,7 @@ class ElanClient:
             url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to post {}".format(url))
-        response = self.session.post(url=url, headers=headers, data=data)
+        response = requests.post(url=url, headers=headers, data=data)
         self.check_response(response)
         return response
 
@@ -122,7 +117,7 @@ class ElanClient:
             url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to put {}".format(url))
-        response = self.session.put(url=url, headers=headers, data=data)
+        response = requests.put(url=url, headers=headers, data=data)
         self.check_response(response)
         return response.text
 
@@ -141,9 +136,6 @@ class ElanClient:
                 logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
                 if self.lock.lock.level < 2:
                     logger.debug("first lock, connecting")
-                    if self.session:
-                        self.session.close()
-                    self.session = None
                     self.cookie = None
 
                     self.get_login_cookie()
@@ -164,10 +156,7 @@ class ElanClient:
     async def ws_listen(self, publisher: Callable) -> None:
         """get a message on websocket"""
         self.connect()
-        # name = "pan"
-        # key = '1a0af0924dfcfc49af82f0d1e4eb59a681339978'
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
-        #headers = {"Authorization": f"Bearer {key}"}
         ws_host = self.elan_url.replace("http://", "wss://") + '/api/ws'
         logger.debug("checking ws at {}".format(ws_host))
         try:
@@ -202,16 +191,11 @@ class ElanClient:
         name = self.creds.get("name")
         key = self.creds.get("key")
         login_obj = {"name": name, 'key': key}
-        if not self.session:
-            self.session = Session()
-            self.session.verify = True
         try:
-            response = self.session.post(self.elan_url + '/login', data=login_obj)
+            response = requests.post(self.elan_url + '/login', data=login_obj)
             self.check_response(response)
         except BaseException as ose:
             logger.error("login error: {}".format(str(ose)))
-            self.session.close()
-            self.session = None
             raise
         self.cookie = response.cookies['AuthAPI']
         logger.debug("Cookie: AuthAPI={}".format(self.cookie))
