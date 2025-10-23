@@ -82,7 +82,7 @@ class ElanClient:
             try:
                 self.connect(reconnect)
                 headers = {"Cookie": "AuthAPI={}".format(self.cookie)}
-                response = requests.get(url=url , headers=headers)
+                response = requests.get(url=url , headers=headers, timeout=10)
                 if self.check_response(response):
                     return response.json()
                 logger.debug("invalid response, retrying")
@@ -192,7 +192,7 @@ class ElanClient:
         key = self.creds.get("key")
         login_obj = {"name": name, 'key': key}
         try:
-            response = requests.post(self.elan_url + '/login', data=login_obj)
+            response = requests.post(self.elan_url + '/login', data=login_obj, timeout=10)
             self.check_response(response)
         except BaseException as ose:
             logger.error("login error: {}".format(str(ose)))
