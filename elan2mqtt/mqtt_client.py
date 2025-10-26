@@ -54,12 +54,12 @@ class MqttClient:
         :param payload: payload
         :param message: message
         """
-        self.queue.put_nowait(PublishData(topic, payload, message))
+        MqttClient.queue.put_nowait(PublishData(topic, payload, message))
 
     async def do_publish(self):
         """ do the real publish, process the queue"""
         while True:
-            if self.queue.empty():
+            if MqttClient.queue.empty():
                 await asyncio.sleep(10)
                 continue
             pdata: PublishData = self.queue.get_nowait()
@@ -76,12 +76,19 @@ class MqttClient:
 #        async with self.lock:
         logger.info("listening on '{}'".format(topic))
 
-        async with aiomqtt.Client(hostname=self.url, username=self.username, password=self.password, logger=logger) as client:
-            await client.subscribe(topic)
-            logger.info("listening: message arrived")
-            async for message in client.messages:
-                mac = message.topic.value.split("/")[1]
-                await callback(mac, message.payload.decode("utf-8"))
-        logger.info("listening on {} ended".format(topic))
+        while True:
+            try:
+                async with aiomqtt.Client(hostname=self.url, username=self.username, password=self.password, logger=logger) as client:
+                    await client.subscribe(topic)
+                    logger.info("listening: message arrived")
+                    async for message in client.messages:
+                        mac = message.topic.value.split("/")[1]
+                        await callback(mac, message.payload.decode("utf-8"))
+            except aiomqtt.MqttError as mexc:
+                logger.error("mqtt error: {}".format(str(mexc)))
+            except BaseException as bexc:
+                logger.error("Unexpected mqtt error: {}".format(str(bexc)))
+            await asyncio.sleep(1)
+            logger.warning("restarting mqtt listener")
 
 

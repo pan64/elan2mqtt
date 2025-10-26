@@ -63,7 +63,6 @@ class ElanClient:
         if "error" in result:
             msg = result["error"]["message"]
             self.cookie = None
-            self.session = None
             logger.error(msg)
         return False
 
