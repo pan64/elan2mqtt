@@ -145,8 +145,6 @@ async def main():
     global logger
     asyncio.current_task().set_name("main")
 
-    mqtt.connect()
-
     logger.info("{} devices have been found in eLan".format(len(devices)))
 
     _loop = _start_async()

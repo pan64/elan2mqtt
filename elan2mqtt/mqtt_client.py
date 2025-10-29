@@ -28,7 +28,7 @@ class MqttClient:
     name: str
     client: aiomqtt.Client
 
-    lock = asyncio.Lock()
+    # lock = asyncio.Lock()
 
     queue: Queue = Queue()
 
@@ -42,12 +42,9 @@ class MqttClient:
         self.url = config['options']['MQTTserver']
         self.name = config['options']['mqtt_id']
 
-    def connect(self):
-        """connect to broker"""
-        self.client = aiomqtt.Client(hostname=self.url, username=self.username, password=self.password, logger=logger)
-        logger.info("mqtt is connected to {}".format(self.url))
 
-    def publish(self, topic: str, payload: str, message: str):
+    @staticmethod
+    def publish(topic: str, payload: str, message: str):
         """
         put publish message into queue
         :param topic: topic
@@ -59,13 +56,25 @@ class MqttClient:
     async def do_publish(self):
         """ do the real publish, process the queue"""
         while True:
+
             if MqttClient.queue.empty():
                 await asyncio.sleep(10)
                 continue
             pdata: PublishData = self.queue.get_nowait()
-            async with self.client as client:
-                await client.publish(pdata.topic, bytearray(pdata.payload, 'utf-8'))
-            logger.info("{}: topic '{}' is published '{}'".format(pdata.message, pdata.topic, pdata.payload))
+            try:
+                async with aiomqtt.Client(
+                    hostname=self.url,
+                    username=self.username,
+                    password=self.password,
+                    logger=logger,
+                ) as client:
+                    await client.publish(pdata.topic, bytearray(pdata.payload, 'utf-8'))
+                logger.info("{}: topic '{}' is published '{}'".format(pdata.message, pdata.topic, pdata.payload))
+            except aiomqtt.MqttError as mexc:
+                logger.error("mqtt error: {}".format(str(mexc)))
+            except BaseException as bexc:
+                logger.error("Unexpected mqtt error: {}".format(str(bexc)))
+            await asyncio.sleep(10)
 
     async def listen(self, topic: str, callback: Callable[[str, str], Coroutine[Any, Any, None]]):
         """
@@ -88,7 +97,7 @@ class MqttClient:
                 logger.error("mqtt error: {}".format(str(mexc)))
             except BaseException as bexc:
                 logger.error("Unexpected mqtt error: {}".format(str(bexc)))
-            await asyncio.sleep(1)
+            await asyncio.sleep(10)
             logger.warning("restarting mqtt listener")
 
 
