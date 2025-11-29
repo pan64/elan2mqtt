@@ -1,15 +1,16 @@
 import argparse
 import asyncio
 import logging
-import threading
-from typing import List
-import time
+
+from typing import Dict, Any
 import sys
 
 import elan_client
 import mqtt_client
 from config import Config
 from elan_logger import set_logger
+from event_bus import event_bus, EventType
+from device_manager import device_manager
 
 from device import Device
 from asyncio import TaskGroup
@@ -21,9 +22,7 @@ config_data: Config
 elan: elan_client.ElanClient = elan_client.ElanClient()
 mqtt: mqtt_client.MqttClient = mqtt_client.MqttClient("main")
 
-devices: List[Device] = []
-device_hash: dict[str, Device] = {}
-device_addr_hash: dict[str, Device] = {}
+
 
 
 def read_config() -> Config:
@@ -35,134 +34,117 @@ def read_config() -> Config:
     try:
         config = Config("config.json")
         return config
-    except BaseException as be:
-        logger.error("read config exception occurred")
-        logger.error(be, exc_info=True)
+    except (FileNotFoundError, PermissionError) as e:
+        logger.error("Config file access error: {}".format(str(e)))
+        raise
+    except (ValueError, TypeError) as e:
+        logger.error("Config file format error: {}".format(str(e)))
+        raise
+    except Exception as e:
+        logger.error("Unexpected error reading config: {}".format(str(e)))
         raise
 
 
-def get_devices():
+def get_devices() -> None:
     """
     get list of available devices from elan
     """
-    global devices
-    global elan
-    global device_hash
-    device_list: dict = elan.get('/api/devices')
-    for d in device_list.values():
-        dev = Device.create(d["url"])
-        devices.append(dev)
-        device_hash[dev.id] = dev
-        device_addr_hash[str(dev.data['device info']['address'])] = dev
-    # mqtt_client.device_hash = device_hash
-    logger.warning(device_list)
-    logger.warning(device_hash.keys())
-    logger.warning(device_addr_hash.keys())
+    device_list: Dict[str, Any] = elan.get('/api/devices')
+    device_manager.update_devices(device_list)
+    logger.info("Loaded {} devices".format(len(device_manager.devices)))
 
 
-async def publish_all():
-    """
-    send general publish state messages to mqtt in loop
-    """
-    last_publish = 0
+async def handle_device_state_changed(device_id: str) -> None:
+    """Handle device state change events"""
+    if device_id in device_manager.device_hash:
+        device_manager.device_hash[device_id].publish()
+
+async def periodic_publish() -> None:
+    """Periodic fallback publishing"""
     while True:
-        needed = last_publish + config_data['options']['publish_interval'] - time.time()
-        if needed > 0:
-            logger.info("waiting {} secs for the next publish".format(round(needed)))
-            await asyncio.sleep(needed)
-        for dev in devices:
-            dev.publish()
-        last_publish = time.time()
+        await asyncio.sleep(config_data['options']['publish_interval'])
+        for dev in device_manager.devices:
+            await event_bus.publish(EventType.DEVICE_STATE_CHANGED, dev.id)
 
 
 
-async def discover_all():
-    """
-    send discover messages to mqtt in loop
-    """
-    last_discover = 0
+async def handle_device_discovered(device: Device) -> None:
+    """Handle device discovery events"""
+    await device.discover()
+
+async def initial_discovery() -> None:
+    """Initial device discovery"""
+    for dev in device_manager.devices:
+        await event_bus.publish(EventType.DEVICE_DISCOVERED, dev)
+
+async def periodic_device_refresh() -> None:
+    """Periodic device list refresh to handle device changes"""
     while True:
-        needed = last_discover + config_data['options']['discover_interval'] - time.time()
-        if needed > 0:
-            logger.info("waiting {} secs for the next discover".format(round(needed)))
-            await asyncio.sleep(needed)
-        dev: Device
-        for dev in devices:
-            await dev.discover()
-        last_discover = time.time()
+        await asyncio.sleep(config_data['options'].get('device_refresh_interval', 3600))
+        try:
+            get_devices()
+        except Exception as e:
+            logger.error("Device refresh failed: {}".format(str(e)))
 
 
 async def elan_ws() -> None:
     """
     elan websocket listener loop
     """
-    def publisher(device: str):
-        global device_hash
+    async def ws_handler(device_id: str) -> None:
+        await event_bus.publish(EventType.DEVICE_STATE_CHANGED, device_id)
 
-        try:
-            device_hash[device].publish()
-        except KeyError:
-            pass
-
-    last_socket = 0
     while True:
-        needed = last_socket + config_data['options']['socket_interval'] - time.time()
-        if needed > 0:
-            logger.info("waiting {} secs for the next websocket".format(round(needed)))
-            await asyncio.sleep(needed)
         try:
-            await elan.ws_listen(publisher)
-        except BaseException as e:
-            logger.error("ws listener error", e)
-            raise
+            await elan.ws_listen(ws_handler)
+        except (ConnectionError, OSError) as e:
+            logger.error("WebSocket connection error: {}".format(str(e)))
+            await asyncio.sleep(config_data['internal']['constants']['WEBSOCKET_ERROR_DELAY'])
+        except Exception as e:
+            logger.error("Unexpected WebSocket error: {}".format(str(e)))
+            await asyncio.sleep(config_data['internal']['constants']['ERROR_RETRY_DELAY'])
 
-        last_socket = time.time()
 
-
-async def process_event(address: str, payload: str):
-    """
-    handle event on the given device
-    :param address: address of the device
-    :param payload: command to process
-    """
-    if address in device_addr_hash:
-        await device_addr_hash[address].process_command(payload)
+async def handle_mqtt_command(data: Dict[str, str]) -> None:
+    """Handle MQTT command events"""
+    address = data.get('address')
+    payload = data.get('payload')
+    if address in device_manager.device_addr_hash:
+        await device_manager.device_addr_hash[address].process_command(payload)
     else:
-        logger.error("process_event error occurred")
-        logger.error(address)
-        logger.error(payload)
-        logger.error(device_hash)
+        logger.error("Device not found: {}".format(address))
 
-def _start_async():
-    loop = asyncio.new_event_loop()
-    threading.Thread(target=elan_ws_runner, args=(loop, )).start()
-    return loop
+async def process_event(address: str, payload: str) -> None:
+    """MQTT event processor"""
+    await event_bus.publish(EventType.MQTT_COMMAND_RECEIVED, {'address': address, 'payload': payload})
 
-def elan_ws_runner(_loop):
-    asyncio.run_coroutine_threadsafe(elan_ws(), _loop)
 
-async def main():
+
+async def main() -> None:
     global logger
     asyncio.current_task().set_name("main")
 
-    logger.info("{} devices have been found in eLan".format(len(devices)))
+    # Setup event handlers
+    event_bus.subscribe(EventType.DEVICE_STATE_CHANGED, handle_device_state_changed)
+    event_bus.subscribe(EventType.DEVICE_DISCOVERED, handle_device_discovered)
+    event_bus.subscribe(EventType.MQTT_COMMAND_RECEIVED, handle_mqtt_command)
 
-    _loop = _start_async()
-
+    mqtt.connect()
+    logger.info("{} devices have been found in eLan".format(len(device_manager.devices)))
 
     async with TaskGroup() as group:
-        group.create_task(publish_all(), name="publish")
+        group.create_task(periodic_publish(), name="publish")
+        group.create_task(periodic_device_refresh(), name="device_refresh")
         if not config_data['options']['disable_autodiscovery']:
-            group.create_task(discover_all(), name="discover")
-#        group.create_task(asyncio.to_thread(elan_ws), name="websocket")
+            group.create_task(initial_discovery(), name="discover")
+        group.create_task(elan_ws(), name="websocket")
         group.create_task(mqtt.do_publish(), name="mqtt")
         group.create_task(mqtt.listen("eLan/+/command", process_event), name="subscribe")
 
-        logger.info("all tasks have been created {}".format(asyncio.all_tasks()))
+        logger.info("Event-driven system started")
 
     while True:
-        logger.info("running tasks: {}".format(len(asyncio.all_tasks())))
-        await asyncio.sleep(10)
+        await asyncio.sleep(config_data['internal']['constants']['MAIN_LOOP_INTERVAL'])
 
 
 def str2bool(v) -> bool:
@@ -195,9 +177,11 @@ if __name__ == '__main__':
             asyncio.run(main())
         except KeyboardInterrupt:
             sys.exit(1)
-        except:  # noqa: E722
-            logger.exception(
-                "MAIN WORKER: Something went wrong. But don't worry we will start over again.",
-                exc_info=True)
+        except (ConnectionError, OSError) as e:
+            logger.error("Network connection error: {}".format(str(e)))
+        except (ValueError, TypeError) as e:
+            logger.error("Configuration or data error: {}".format(str(e)))
+        except Exception as e:
+            logger.exception("Unexpected error in main worker: {}".format(str(e)))
 
-        logger.error("But at first take some break. Sleeping for 10 s")
+        logger.error("But at first take some break. Sleeping for {} s".format(config_data['internal']['constants']['MAIN_LOOP_INTERVAL']))

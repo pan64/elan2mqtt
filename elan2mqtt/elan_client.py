@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 from collections.abc import Callable
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import aiologic
 from websockets import InvalidStatus, ConnectionClosedError
@@ -28,11 +28,13 @@ class ElanClient:
         self.elan_url: Optional[str] = None
         self.logged_in: bool = False
         self.cookie: Optional[str] = None
+        self.config: Optional[Config] = None
 
     def setup(self, data: Config) -> None:
         """configure this elan client"""
         try:
             logger.info("loading config file")
+            self.config = data
             self.elan_url = data["options"]["eLanURL"]
             elan_user = data["options"]["username"]
             elan_pass = data["options"]["password"]
@@ -43,9 +45,11 @@ class ElanClient:
             }
 
             logger.info("elan url: '{}', user: '{}', pass: '{}'".format(self.elan_url, elan_user, elan_pass))
-        except BaseException as be:
-            logger.error("read config exception occurred: " + str(be))
-            logger.error(be, exc_info=True)
+        except (KeyError, TypeError) as e:
+            logger.error("Invalid configuration format: {}".format(str(e)))
+            raise ValueError("Invalid eLan configuration") from e
+        except Exception as e:
+            logger.error("Error setting up eLan client: {}".format(str(e)))
             raise
 
     def check_response(self, response: requests.Response) -> bool:
@@ -58,15 +62,19 @@ class ElanClient:
         logger.debug("check response code: {}, reason: {}".format(response.status_code, response.reason))
         if response.ok:
             return True
-        result = response.json()
-        response.close()
-        if "error" in result:
-            msg = result["error"]["message"]
-            self.cookie = None
-            logger.error(msg)
+        try:
+            result = response.json()
+            if "error" in result:
+                msg = result["error"]["message"]
+                self.cookie = None
+                logger.error("eLan API error: {}".format(msg))
+        except (ValueError, KeyError) as e:
+            logger.error("Invalid response format: {}".format(str(e)))
+        finally:
+            response.close()
         return False
 
-    def get(self, url: str) -> dict:
+    def get(self, url: str) -> Dict[str, Any]:
         """
         get data from the given address
         :param url: device api endpoint
@@ -81,16 +89,20 @@ class ElanClient:
             try:
                 self.connect(reconnect)
                 headers = {"Cookie": "AuthAPI={}".format(self.cookie)}
-                response = requests.get(url=url , headers=headers, timeout=10)
+                response = requests.get(url=url , headers=headers, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
                 if self.check_response(response):
                     return response.json()
                 logger.debug("invalid response, retrying")
-            except BaseException as bee:
-                logger.error("trying to get failed (retrying #{}): {}".format(i, str(bee)))
+            except requests.RequestException as e:
+                logger.error("HTTP request failed (retry #{}): {}".format(i, str(e)))
+            except (ValueError, KeyError) as e:
+                logger.error("Response parsing failed (retry #{}): {}".format(i, str(e)))
+            except Exception as e:
+                logger.error("Unexpected error (retry #{}): {}".format(i, str(e)))
             reconnect = True
         return {}
 
-    def post(self, url: str, data=None) -> requests.Response:
+    def post(self, url: str, data: Optional[str] = None) -> requests.Response:
         """
         post a message to elan
         :param url: device api endpoint
@@ -105,7 +117,7 @@ class ElanClient:
         self.check_response(response)
         return response
 
-    def put(self, url: str, data=None) -> str: # requests.Response:
+    def put(self, url: str, data: Optional[str] = None) -> str: # requests.Response:
         """
         put a message to elan
         :param url: device api endpoint
@@ -121,7 +133,7 @@ class ElanClient:
         return response.text
 
 
-    def connect(self, force: bool = False):
+    def connect(self, force: bool = False) -> None:
         """
         connect to the elan host and get a valid cookie
         :param force: get new cookie unconditionally
@@ -133,7 +145,7 @@ class ElanClient:
                     return
                 now = datetime.datetime.now()
                 logger.debug(now.strftime("%Y-%m-%d %H:%M:%S trying to [re]connect"))
-                if self.lock.lock.level < 2:
+                if self.lock.lock.count < 2:
                     logger.debug("first lock, connecting")
                     self.cookie = None
 
@@ -141,29 +153,33 @@ class ElanClient:
                     self.lock.notify_all()
                 else:
                     logger.debug("waiting for the [re]connect to complete")
-                    self.lock.wait(timeout=10)
-        except BaseException as exc:
-            logger.error("cannot login to elan {}".format(str(exc)))
-            #print(f"Current {e.__class__}: {e}")
-            #print(f"Nested {e.__cause__.__class__}:{e.__cause__}")
-            while exc:
-                e = exc
-                logger.error("Exc: {}:{}".format(e.__class__.__name__,str(e)))
-                exc = e.__cause__
-            raise ElanException from exc
+                    self.lock.wait(timeout=self.config['internal']['constants']['LOCK_WAIT_TIMEOUT'])
+        except requests.RequestException as e:
+            logger.error("Network error during eLan connection: {}".format(str(e)))
+            raise ElanException("Network connection failed") from e
+        except (ValueError, KeyError) as e:
+            logger.error("Authentication error: {}".format(str(e)))
+            raise ElanException("Authentication failed") from e
+        except Exception as e:
+            logger.error("Unexpected error during eLan connection: {}".format(str(e)))
+            raise ElanException("Connection failed") from e
 
     async def ws_listen(self, publisher: Callable) -> None:
         """get a message on websocket"""
         self.connect()
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
-        ws_host = self.elan_url.replace("http://", "wss://") + '/api/ws'
+        # headers = {"AuthAPI": self.cookie}
+        ws_host = self.elan_url.replace("http://", "ws://") + '/api/ws'
         logger.debug("checking ws at {}".format(ws_host))
         try:
-            async for ws in ws_connect(ws_host, additional_headers=headers, ping_timeout=1000):
+            ping_timeout = self.config['internal']['constants']['WEBSOCKET_PING_TIMEOUT']
+            recv_timeout = self.config['internal']['constants']['WEBSOCKET_RECV_TIMEOUT']
+            async for ws in ws_connect(ws_host, additional_headers=headers, ping_timeout=ping_timeout):
+            # async for ws in ws_connect(ws_host, ping_timeout=ping_timeout):
 
-                data: dict = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
+                data: dict = json.loads(await asyncio.wait_for(ws.recv(), timeout=recv_timeout))
                 logger.debug("received {}".format(data))
-                publisher(data['device'])
+                await publisher(data['device'])
         except asyncio.exceptions.CancelledError as ece:
             logger.error("websocket cancelled: {}".format(str(ece)))
             self.cookie = None
@@ -191,10 +207,16 @@ class ElanClient:
         key = self.creds.get("key")
         login_obj = {"name": name, 'key': key}
         try:
-            response = requests.post(self.elan_url + '/login', data=login_obj, timeout=10)
+            response = requests.post(self.elan_url + '/login', data=login_obj, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
             self.check_response(response)
-        except BaseException as ose:
-            logger.error("login error: {}".format(str(ose)))
+        except requests.RequestException as e:
+            logger.error("Network error during login: {}".format(str(e)))
+            raise
+        except KeyError as e:
+            logger.error("Missing authentication cookie: {}".format(str(e)))
+            raise
+        except Exception as e:
+            logger.error("Login failed: {}".format(str(e)))
             raise
         self.cookie = response.cookies['AuthAPI']
         logger.debug("Cookie: AuthAPI={}".format(self.cookie))

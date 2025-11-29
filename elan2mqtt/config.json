@@ -18,7 +18,8 @@
     "mqtt_id": "elan",
     "publish_interval": 300,
     "discover_interval": 600,
-    "socket_interval": 0
+    "socket_interval": 0,
+    "device_refresh_interval": 3600
   },
   "schema": {
     "eLanURL": "str",
@@ -27,10 +28,24 @@
     "password": "str",
     "log_level": "match(^(trace|debug|info|notice|warning|error|fatal)$)",
     "disable_autodiscovery": "bool?",
-    "mqtt_id": "str?"
+    "mqtt_id": "str?",
+    "device_refresh_interval": "int?"
   },
   "logging": {
     "formatter": "%(asctime)s %(filename)s:%(lineno)d %(coproc)s/%(levelname)s - %(message)s",
     "log_level": "debug"
+  },
+  "internal": {
+    "constants": {
+      "HTTP_TIMEOUT": 10,
+      "WEBSOCKET_PING_TIMEOUT": 1000,
+      "WEBSOCKET_RECV_TIMEOUT": 10,
+      "MQTT_RECONNECT_DELAY": 5,
+      "NETWORK_RECONNECT_DELAY": 10,
+      "ERROR_RETRY_DELAY": 1,
+      "WEBSOCKET_ERROR_DELAY": 5,
+      "LOCK_WAIT_TIMEOUT": 10,
+      "MAIN_LOOP_INTERVAL": 10
+    }
   }
 }
