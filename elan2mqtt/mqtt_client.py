@@ -97,7 +97,7 @@ class MqttClient:
                             logger.info("{}: topic '{}' is published '{}'".format(pdata.message, pdata.topic, pdata.payload))
                             self.queue.task_done()
                         except aiomqtt.MqttError as e:
-                            logger.error("MQTT publish error for topic '{}': {}".format(pdata.topic if 'pdata' in locals() else 'unknown', str(e)))
+                            logger.error("MQTT publish error for topic '{}': {}".format(pdata.topic if 'pdata' in locals() else 'unknown', str(e)), exc_info=True)
                             self.queue.task_done()
                         except UnicodeEncodeError as e:
                             logger.error("Encoding error for payload: {}".format(str(e)))

@@ -83,6 +83,7 @@ async def periodic_device_refresh() -> None:
         await asyncio.sleep(config_data['options'].get('device_refresh_interval', 3600))
         try:
             get_devices()
+            await initial_discovery()
         except Exception as e:
             logger.error("Device refresh failed: {}".format(str(e)))
 
@@ -129,7 +130,7 @@ async def main() -> None:
     event_bus.subscribe(EventType.DEVICE_DISCOVERED, handle_device_discovered)
     event_bus.subscribe(EventType.MQTT_COMMAND_RECEIVED, handle_mqtt_command)
 
-    mqtt.connect()
+    # mqtt.connect()
     logger.info("{} devices have been found in eLan".format(len(device_manager.devices)))
 
     async with TaskGroup() as group:

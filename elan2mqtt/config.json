@@ -33,13 +33,13 @@
   },
   "logging": {
     "formatter": "%(asctime)s %(filename)s:%(lineno)d %(coproc)s/%(levelname)s - %(message)s",
-    "log_level": "debug"
+    "log_level": "error"
   },
   "internal": {
     "constants": {
       "HTTP_TIMEOUT": 10,
       "WEBSOCKET_PING_TIMEOUT": 1000,
-      "WEBSOCKET_RECV_TIMEOUT": 10,
+      "WEBSOCKET_RECV_TIMEOUT": 100,
       "MQTT_RECONNECT_DELAY": 5,
       "NETWORK_RECONNECT_DELAY": 10,
       "ERROR_RETRY_DELAY": 1,
