@@ -13,7 +13,7 @@
     "mqtt_pass": "elan",
     "username": "user",
     "password": "user",
-    "log_level": "info",
+    "log_level": "warning",
     "disable_autodiscovery": false,
     "mqtt_id": "elan",
     "publish_interval": 300,
