@@ -50,19 +50,6 @@ class MqttClient:
             logger.error("Error setting up MQTT client: {}".format(str(e)))
             raise
 
-    def connect(self) -> None:
-        """connect to broker"""
-        try:
-            if not hasattr(self, 'url') or not self.url:
-                raise ValueError("MQTT URL not configured")
-            self.client = aiomqtt.Client(hostname=self.url, username=self.username, password=self.password, logger=logger)
-            logger.info("mqtt is connected to {}".format(self.url))
-        except (ValueError, TypeError) as e:
-            logger.error("MQTT connection configuration error: {}".format(str(e)))
-            raise
-        except Exception as e:
-            logger.error("Failed to create MQTT client: {}".format(str(e)))
-            raise
 
     def publish(self, topic: str, payload: str, message: str) -> None:
         """
@@ -99,6 +86,7 @@ class MqttClient:
                         except aiomqtt.MqttError as e:
                             logger.error("MQTT publish error for topic '{}': {}".format(pdata.topic if 'pdata' in locals() else 'unknown', str(e)), exc_info=True)
                             self.queue.task_done()
+                            break
                         except UnicodeEncodeError as e:
                             logger.error("Encoding error for payload: {}".format(str(e)))
                             self.queue.task_done()

@@ -3,7 +3,7 @@ FROM $BUILD_FROM
 
 # Add env
 ENV LANG=C.UTF-8
-ENV ELAN2MQTT_VERSION=1.17.0
+ENV ELAN2MQTT_VERSION=1.20.0
 ENV ARCHIVE=elan2mqtt
 
 # Install requirements for add-on
