@@ -74,7 +74,7 @@ class Device:
             kind = "light"
         elif d_type in ("light", "lamp"):
             kind = "light"
-        if 'brightness' in self.data['primary actions']:
+        elif 'brightness' in self.data['primary actions']:
             kind = "light"
         elif d_product in ('RFSA-61M',  'RFSA-66M', 'RFSA-11B', 'RFUS-61', 'RFSA-62B'):
             kind = "switch"
