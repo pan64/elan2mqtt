@@ -57,3 +57,16 @@ RFxD-100 | detector | MQTT templae detector
 All devices marked in eLan as:
 - **lights** are reported to HA as light (controllable)
 - **heating** are reported as temperature sensors and on/off sensor
+
+# About this fork/version
+- python is now upgraded, tool can be used with 3.12, 3.13, 3.14
+- removed embedded aiohttp (deprecated) module
+- requirements.txt is simplified, cleaned up
+- uses only one process, not two
+- can run directly using run.sh (with venv)
+- can be used with docker (see start_docker.sh), (use build.sh to create the docker image)
+- fully configurable with config.json, there is no meed to specify command line parameter(s)
+- improved logging
+- improved error handling
+- added pep 484 (type annotation)
+- much more stable (I think)
