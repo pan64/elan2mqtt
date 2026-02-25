@@ -119,7 +119,7 @@ def elan_ws_sync(config_dict: Dict[str, Any], device_queue: MPQueue, cookie_dict
     import json  # noqa: E402
     from urllib.parse import urlparse, urlunparse  # noqa: E402
     from websockets.sync.client import connect as ws_connect_sync  # noqa: E402
-    import logging as process_logging  # noqa: E402,W0404
+    import logging as process_logging  # noqa: E402
 
     # Setup logging in process
     process_logger = process_logging.getLogger(__name__)
