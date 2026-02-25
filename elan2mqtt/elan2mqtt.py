@@ -169,7 +169,7 @@ async def cookie_refresh_monitor(cookie_dict: Dict) -> None:
     while True:
         try:
             await asyncio.sleep(0.5)
-            if cookie_dict.get('cookie') is None and elan.cookie is None:
+            if cookie_dict.get('cookie') is None:
                 logger.info("Cookie refresh requested by websocket process")
                 try:
                     await elan.connect(force=True)
