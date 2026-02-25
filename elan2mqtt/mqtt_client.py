@@ -77,13 +77,12 @@ class MqttClient:
         """ do the real publish, process the queue"""
         while True:
             try:
-                client_params = {
-                    'hostname': self.url,
-                    'username': self.username,
-                    'password': self.password,
-                    'logger': logger
-                }
-                async with aiomqtt.Client(**client_params) as client:
+                async with aiomqtt.Client(
+                    hostname=self.url,
+                    username=self.username,
+                    password=self.password,
+                    logger=logger
+                ) as client:
                     while True:
                         try:
                             pdata: PublishData = await self.queue.get()
@@ -126,13 +125,12 @@ class MqttClient:
 
         while True:
             try:
-                client_params = {
-                    'hostname': self.url,
-                    'username': self.username,
-                    'password': self.password,
-                    'logger': logger
-                }
-                async with aiomqtt.Client(**client_params) as client:
+                async with aiomqtt.Client(
+                    hostname=self.url,
+                    username=self.username,
+                    password=self.password,
+                    logger=logger
+                ) as client:
                     await client.subscribe(topic)
                     logger.info("subscribed to topic: {}".format(topic))
                     async for message in client.messages:
