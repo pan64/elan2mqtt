@@ -220,6 +220,14 @@ async def process_event(address: str, payload: str) -> None:
 async def main() -> None:
     asyncio.current_task().set_name("main")
 
+    # Create shared manager for inter-process communication
+    manager = Manager()
+    device_queue = manager.Queue()
+    cookie_dict = manager.dict()
+
+    # Set the shared cookie dict on elan client
+    elan.cookie_dict = cookie_dict
+
     # Load devices from eLan
     await get_devices()
 
@@ -233,20 +241,6 @@ async def main() -> None:
 
     # Create ProcessPoolExecutor for websocket listener
     executor = ProcessPoolExecutor(max_workers=1)
-
-    # Create shared manager for inter-process communication
-    manager = Manager()
-    device_queue = manager.Queue()
-    cookie_dict = manager.dict()
-
-    # Set the shared cookie dict on elan client
-    elan.cookie_dict = cookie_dict
-
-    # Get initial authentication cookie before starting websocket process
-    try:
-        await elan.connect()
-    except Exception as e:
-        logger.warning("Initial connection failed, websocket will wait for cookie: {}".format(str(e)))
 
     # Submit websocket listener to process pool
     executor.submit(elan_ws_sync, config_data.data, device_queue, cookie_dict)
