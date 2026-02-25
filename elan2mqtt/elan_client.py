@@ -78,7 +78,7 @@ class ElanClient:
         """
 
         logger.debug("check response code: {}, text: {}".format(response.status_code, response.text[:100]))
-        if response.ok:
+        if response.is_success:
             return True
         try:
             result = response.json()
