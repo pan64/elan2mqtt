@@ -85,6 +85,9 @@ class ElanClient:
             if "error" in result:
                 msg = result["error"]["message"]
                 self.cookie = None
+                # Sync cookie invalidation to shared dict
+                if self.cookie_dict is not None:
+                    self.cookie_dict['cookie'] = None
                 logger.error("eLan API error: {}".format(msg))
         except (ValueError, KeyError) as e:
             logger.error("Invalid response format: {}".format(str(e)))
