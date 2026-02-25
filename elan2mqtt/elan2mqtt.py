@@ -67,7 +67,7 @@ async def handle_device_state_changed(device_id: str) -> None:
     """Handle device state change events"""
     try:
         if device_id in device_manager.device_hash:
-            device_manager.device_hash[device_id].publish()
+            await device_manager.device_hash[device_id].publish()
     except Exception as e:
         logger.error("Error handling device state change for {}: {}".format(device_id, str(e)))
 
