@@ -88,7 +88,8 @@ async def handle_device_discovered(device: Device) -> None:
     try:
         await device.discover()
     except Exception as e:
-        logger.error("Error discovering device {}: {}".format(device.id if hasattr(device, 'id') else 'unknown', str(e)))
+        device_id = device.id if hasattr(device, 'id') else 'unknown'
+        logger.error("Error discovering device {}: {}".format(device_id, str(e)))
 
 
 async def initial_discovery() -> None:
@@ -292,5 +293,6 @@ if __name__ == '__main__':
             logger.exception("Error in main worker: {}".format(str(e)))
             asyncio.run(elan.cleanup())
 
-        logger.error("But at first take some break. Sleeping for {} s".format(config_data['internal']['constants']['MAIN_LOOP_INTERVAL']))
+        logger.error("But at first take some break. Sleeping for {} s".format(
+            config_data['internal']['constants']['MAIN_LOOP_INTERVAL']))
         asyncio.run(asyncio.sleep(config_data['internal']['constants']['MAIN_LOOP_INTERVAL']))

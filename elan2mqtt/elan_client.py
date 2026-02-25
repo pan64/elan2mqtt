@@ -103,7 +103,8 @@ class ElanClient:
             try:
                 await self.connect(reconnect)
                 headers = {"Cookie": "AuthAPI={}".format(self.cookie)}
-                response = await self.client.get(url=url, headers=headers, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
+                timeout = self.config['internal']['constants']['HTTP_TIMEOUT']
+                response = await self.client.get(url=url, headers=headers, timeout=timeout)
                 if self.check_response(response):
                     return response.json()
                 logger.debug("invalid response, retrying")
@@ -127,7 +128,8 @@ class ElanClient:
             url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to post {}".format(url))
-        response = await self.client.post(url=url, headers=headers, data=data, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
+        timeout = self.config['internal']['constants']['HTTP_TIMEOUT']
+        response = await self.client.post(url=url, headers=headers, data=data, timeout=timeout)
         self.check_response(response)
         return response
 
@@ -142,7 +144,8 @@ class ElanClient:
             url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to put {}".format(url))
-        response = await self.client.put(url=url, headers=headers, data=data, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
+        timeout = self.config['internal']['constants']['HTTP_TIMEOUT']
+        response = await self.client.put(url=url, headers=headers, data=data, timeout=timeout)
         self.check_response(response)
         return response.text
 
@@ -183,7 +186,10 @@ class ElanClient:
         key = self.creds.get("key")
         login_obj = {"name": name, 'key': key}
         try:
-            response = await self.client.post(self.elan_url + '/login', data=login_obj, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
+            timeout = self.config['internal']['constants']['HTTP_TIMEOUT']
+            response = await self.client.post(
+                self.elan_url + '/login', data=login_obj, timeout=timeout
+            )
             self.check_response(response)
         except httpx.HTTPError as e:
             logger.error("Network error during login: {}".format(str(e)))

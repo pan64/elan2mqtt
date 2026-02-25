@@ -77,15 +77,26 @@ class MqttClient:
         """ do the real publish, process the queue"""
         while True:
             try:
-                async with aiomqtt.Client(hostname=self.url, username=self.username, password=self.password, logger=logger) as client:
+                client_params = {
+                    'hostname': self.url,
+                    'username': self.username,
+                    'password': self.password,
+                    'logger': logger
+                }
+                async with aiomqtt.Client(**client_params) as client:
                     while True:
                         try:
                             pdata: PublishData = await self.queue.get()
                             await client.publish(pdata.topic, bytearray(pdata.payload, 'utf-8'))
-                            logger.info("{}: topic '{}' is published '{}'".format(pdata.message, pdata.topic, pdata.payload))
+                            logger.info("{}: topic '{}' is published '{}'".format(
+                                pdata.message, pdata.topic, pdata.payload))
                             self.queue.task_done()
                         except aiomqtt.MqttError as e:
-                            logger.error("MQTT publish error for topic '{}': {}".format(pdata.topic if 'pdata' in locals() else 'unknown', str(e)), exc_info=True)
+                            topic_name = pdata.topic if 'pdata' in locals() else 'unknown'
+                            logger.error(
+                                "MQTT publish error for topic '{}': {}".format(topic_name, str(e)),
+                                exc_info=True
+                            )
                             self.queue.task_done()
                             break
                         except UnicodeEncodeError as e:
@@ -115,7 +126,13 @@ class MqttClient:
 
         while True:
             try:
-                async with aiomqtt.Client(hostname=self.url, username=self.username, password=self.password, logger=logger) as client:
+                client_params = {
+                    'hostname': self.url,
+                    'username': self.username,
+                    'password': self.password,
+                    'logger': logger
+                }
+                async with aiomqtt.Client(**client_params) as client:
                     await client.subscribe(topic)
                     logger.info("subscribed to topic: {}".format(topic))
                     async for message in client.messages:
