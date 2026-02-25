@@ -1,16 +1,11 @@
 import asyncio
 import datetime
 import hashlib
-from urllib.parse import urlparse, urlunparse
 
-import json
 import logging
-from collections.abc import Callable
 from typing import Optional, Dict, Any
 
 import aiologic
-from websockets import InvalidStatus, ConnectionClosedError
-from websockets.asyncio.client import connect as ws_connect
 from config import Config
 
 import httpx
@@ -182,43 +177,6 @@ class ElanClient:
             logger.error("Unexpected error during eLan connection: {}".format(str(e)))
             raise ElanException("Connection failed") from e
 
-    async def ws_listen(self, publisher: Callable) -> None:
-        """get a message on websocket"""
-        await self.connect()
-        headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
-        # headers = {"AuthAPI": self.cookie}
-        parsed = urlparse(self.elan_url)
-        ws_scheme = "wss" if parsed.scheme == "https" else "ws"
-        ws_host = urlunparse((ws_scheme, parsed.netloc, '/api/ws', '', '', ''))
-        logger.debug("checking ws at {}".format(ws_host))
-        try:
-            ping_timeout = self.config['internal']['constants']['WEBSOCKET_PING_TIMEOUT']
-            recv_timeout = self.config['internal']['constants']['WEBSOCKET_RECV_TIMEOUT']
-            async for ws in ws_connect(ws_host, additional_headers=headers, ping_timeout=ping_timeout):
-                # async for ws in ws_connect(ws_host, ping_timeout=ping_timeout):
-                data: dict = json.loads(await asyncio.wait_for(ws.recv(), timeout=recv_timeout))
-                logger.debug("received {}".format(data))
-                await publisher(data['device'])
-        except asyncio.exceptions.CancelledError as ece:
-            logger.error("websocket cancelled: {}".format(str(ece)))
-            self.cookie = None
-            # raise
-        except InvalidStatus as ise:
-            logger.error("websocket invalid status: {}".format(str(ise)))
-            self.cookie = None
-        except ConnectionClosedError as cce:
-            logger.error("websocket connection closed: {}".format(str(cce)))
-            self.cookie = None
-        except TimeoutError as toe:
-            logger.error("websocket timeout error: {}".format(str(toe)))
-            self.cookie = None
-        except KeyError:
-            return
-        except BaseException as exc:
-            logger.error("websocket error: {}".format(str(exc)))
-            self.cookie = None
-            raise
-        await asyncio.sleep(0)
 
     async def get_login_cookie(self) -> None:
         name = self.creds.get("name")

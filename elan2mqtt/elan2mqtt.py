@@ -236,7 +236,6 @@ async def main() -> None:
     event_bus.subscribe(EventType.DEVICE_DISCOVERED, handle_device_discovered)
     event_bus.subscribe(EventType.MQTT_COMMAND_RECEIVED, handle_mqtt_command)
 
-    # mqtt.connect()
     logger.info("{} devices have been found in eLan".format(len(device_manager.devices)))
 
     # Create ProcessPoolExecutor for websocket listener
