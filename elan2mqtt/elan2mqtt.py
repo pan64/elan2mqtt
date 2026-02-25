@@ -220,6 +220,9 @@ async def process_event(address: str, payload: str) -> None:
 async def main() -> None:
     asyncio.current_task().set_name("main")
 
+    # Load devices from eLan
+    await get_devices()
+
     # Setup event handlers
     event_bus.subscribe(EventType.DEVICE_STATE_CHANGED, handle_device_state_changed)
     event_bus.subscribe(EventType.DEVICE_DISCOVERED, handle_device_discovered)
@@ -276,19 +279,19 @@ if __name__ == '__main__':
             elan.setup(config_data)
             mqtt.setup(config_data)
             Device.init(elan, mqtt)
-            asyncio.run(get_devices())
 
             asyncio.run(main())
         except KeyboardInterrupt:
+            print("Keyboard interrupt received, shutting down")
+            logger.info("Keyboard interrupt received, shutting down")
+            try:
+                asyncio.run(elan.cleanup())
+            except Exception:
+                pass
             sys.exit(1)
-        except (ConnectionError, OSError) as e:
-            logger.error("Network connection error: {}".format(str(e)))
-            asyncio.run(elan.cleanup())
-        except (ValueError, TypeError) as e:
-            logger.error("Configuration or data error: {}".format(str(e)))
-            asyncio.run(elan.cleanup())
         except Exception as e:
-            logger.exception("Unexpected error in main worker: {}".format(str(e)))
+            logger.exception("Error in main worker: {}".format(str(e)))
             asyncio.run(elan.cleanup())
 
         logger.error("But at first take some break. Sleeping for {} s".format(config_data['internal']['constants']['MAIN_LOOP_INTERVAL']))
+        asyncio.run(asyncio.sleep(config_data['internal']['constants']['MAIN_LOOP_INTERVAL']))
