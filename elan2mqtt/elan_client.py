@@ -88,8 +88,6 @@ class ElanClient:
                 logger.error("eLan API error: {}".format(msg))
         except (ValueError, KeyError) as e:
             logger.error("Invalid response format: {}".format(str(e)))
-        finally:
-            response.close()
         return False
 
     async def get(self, url: str) -> Dict[str, Any]:
