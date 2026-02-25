@@ -2,10 +2,14 @@ import json
 import logging
 import os
 from typing import Dict, Any, Optional
+
+
 logger = logging.getLogger(__name__)
+
 
 class Config:
     data: Dict[str, Any] = {}
+
     def __init__(self, filename: str):
         """
         initialize config
@@ -18,11 +22,11 @@ class Config:
             # Validate file path to prevent path traversal
             if not filename or '..' in filename or filename.startswith('/'):
                 raise ValueError("Invalid config filename")
-            
+
             # Ensure file exists and is readable
             if not os.path.isfile(filename):
                 raise FileNotFoundError("Config file not found: {}".format(filename))
-                
+
             with open(filename, "r", encoding="utf8") as json_file:
                 self.data = json.load(json_file)
         except (FileNotFoundError, PermissionError) as e:

@@ -8,6 +8,7 @@ from config import Config
 
 logger = logging.getLogger(__name__)
 
+
 class PublishData:
     def __init__(self, topic: str, payload: str, message: str):
         """
@@ -19,6 +20,7 @@ class PublishData:
         self.topic = topic
         self.payload = payload
         self.message = message
+
 
 class MqttClient:
 
@@ -50,7 +52,6 @@ class MqttClient:
             logger.error("Error setting up MQTT client: {}".format(str(e)))
             raise
 
-
     def publish(self, topic: str, payload: str, message: str) -> None:
         """
         put publish message into queue
@@ -64,7 +65,7 @@ class MqttClient:
         if payload is None:
             logger.warning("Publishing None payload to topic: {}".format(topic))
             payload = ""
-        
+
         try:
             self.queue.put_nowait(PublishData(topic, str(payload), message))
         except asyncio.QueueFull:
@@ -109,7 +110,7 @@ class MqttClient:
         """
         if not topic:
             raise ValueError("Topic cannot be empty")
-        
+
         logger.info("listening on '{}'".format(topic))
 
         while True:
@@ -145,5 +146,3 @@ class MqttClient:
                 logger.error("Unexpected error in MQTT listener: {}".format(str(e)))
             await asyncio.sleep(self.config['internal']['constants']['ERROR_RETRY_DELAY'])
             logger.info("restarting mqtt listener")
-
-

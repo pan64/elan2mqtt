@@ -26,8 +26,8 @@ def set_logger(config: Config) -> None:
         if not isinstance(numeric_level, int):
             numeric_level = logging.INFO
         logging.basicConfig(level=numeric_level, format=formatter)
-    except (KeyError, TypeError) as e:
+    except (KeyError, TypeError):
         # Use safe defaults
         logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s - %(message)s')
-    except Exception as e:
+    except Exception:
         logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s - %(message)s')

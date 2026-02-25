@@ -4,7 +4,7 @@ from typing import Dict, Any
 
 import logging
 import json
-import requests
+import httpx
 
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -29,13 +29,17 @@ class Device:
         cls.mqtt = mqtt
 
     def set_discovery(self, device_type: str, *_) -> None:
-        getattr(self, f"_discovery_{device_type}")()
+        try:
+            getattr(self, f"_discovery_{device_type}")()
+        except AttributeError:
+            logger.warning("No discovery method for device type '{}', skipping discovery".format(device_type))
+            self.data["discovery"] = {}
 
     @classmethod
-    def create(cls, url: str) -> 'Device':
+    async def create(cls, url: str) -> 'Device':
         self = cls()
         try:
-            info = self.elan.get(url)
+            info = await self.elan.get(url)
 
             if "address" in info['device info']:
                 mac = str(info['device info']['address'])
@@ -76,7 +80,7 @@ class Device:
             kind = "light"
         elif 'brightness' in self.data['primary actions']:
             kind = "light"
-        elif d_product in ('RFSA-61M',  'RFSA-66M', 'RFSA-11B', 'RFUS-61', 'RFSA-62B'):
+        elif d_product in ('RFSA-61M', 'RFSA-66M', 'RFSA-11B', 'RFUS-61', 'RFSA-62B'):
             kind = "switch"
         elif d_type == 'appliance':
             kind = "switch"
@@ -94,10 +98,10 @@ class Device:
             kind = "regulator"
         elif d_type == 'detector':
             kind = "detector"
-        elif  ('RFWD-' in d_product) or (
-                'RFSD-' in d_product) or (
-                'RFMD-' in d_product) or (
-                'RFSF-' in d_product):
+        elif (('RFWD-' in d_product) or
+              ('RFSD-' in d_product) or
+              ('RFMD-' in d_product) or
+              ('RFSF-' in d_product)):
             kind = "detector"
 
         # START - RFWD window/door detector
@@ -169,8 +173,6 @@ class Device:
             ddd['homeassistant/light/' + self.data['mac'] + '/config'] = json.dumps(discovery)
             self.data['discovery'] = ddd
 
-
-
     def _discovery_switch(self) -> None:
         ddd = {}
         if 'on' in self.data['primary actions']:
@@ -198,8 +200,6 @@ class Device:
             }
             ddd['homeassistant/switch/' + self.data['mac'] + '/config'] = json.dumps(discovery)
             self.data['discovery'] = ddd
-
-
 
     def _discovery_thermostat(self) -> None:
         ddd = {}
@@ -239,8 +239,6 @@ class Device:
         }
         ddd["homeassistant/sensor/" + self.data["mac"] + "/OUT/config"] = json.dumps(discovery)
         self.data["discovery"] = ddd
-
-
 
     #
     # Thermometers
@@ -286,7 +284,6 @@ class Device:
         }
         ddd['homeassistant/sensor/' + self.data['mac'] + '/OUT/config'] = json.dumps(discovery)
         self.data['discovery'] = ddd
-
 
         #
         # Detectors
@@ -364,8 +361,6 @@ class Device:
             #                    'command_topic': self.data['control_topic']
         }
         ddd['homeassistant/sensor/' + self.data['mac'] + '/battery/config'] = json.dumps(discovery)
-
-
 
     def _discovery_window(self) -> None:
         ddd = {}
@@ -461,9 +456,6 @@ class Device:
             ddd['homeassistant/sensor/' + self.data['mac'] + '/disarm/config'] = json.dumps(discovery)
             self.data['discovery'] = ddd
 
-
-
-
     def _discovery_regulator(self) -> None:
         ddd = {}
         discovery = {
@@ -486,13 +478,13 @@ class Device:
         ddd["homeassistant/sensor/" + self.data["mac"] + "/regulator/config"] = json.dumps(discovery)
         self.data["discovery"] = ddd
 
-    def publish(self) -> None:
+    async def publish(self) -> None:
         """publish device state to mqtt"""
         try:
-            resp = self.elan.get(self.url + '/state')
+            resp = await self.elan.get(self.url + '/state')
             self.mqtt.publish(self.status_topic, json.dumps(resp), "status")
             logger.info("{} has been published".format(self.url))
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             logger.error("Network error publishing {}: {}".format(self.url, str(e)))
         except (KeyError, ValueError) as e:
             logger.error("Data error publishing {}: {}".format(self.url, str(e)))
@@ -513,11 +505,11 @@ class Device:
         try:
             # post command to device - warning there are no checks
             logger.debug("processing: {}, {}".format(self.url, data))
-            command_info: str = self.elan.put(self.url, data=data)
+            command_info: str = await self.elan.put(self.url, data=data)
             logger.debug(command_info)
             # check and publish updated state of device
-            self.publish()
-        except requests.RequestException as e:
+            await self.publish()
+        except httpx.HTTPError as e:
             logger.error("Network error processing command for {}: {}".format(self.url, str(e)))
         except (ValueError, TypeError) as e:
             logger.error("Invalid command data for {}: {}".format(self.url, str(e)))

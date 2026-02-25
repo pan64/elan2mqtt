@@ -1,6 +1,8 @@
 import asyncio
 import datetime
 import hashlib
+from urllib.parse import urlparse, urlunparse
+
 import json
 import logging
 from collections.abc import Callable
@@ -8,19 +10,21 @@ from typing import Optional, Dict, Any
 
 import aiologic
 from websockets import InvalidStatus, ConnectionClosedError
+from websockets.asyncio.client import connect as ws_connect
 from config import Config
 
-
-from websockets.asyncio.client import connect as ws_connect
-import requests
+import httpx
 
 logger: logging.Logger = logging.getLogger(__name__)
+
 
 class ElanException(BaseException):
     pass
 
+
 class ElanClient:
     lock = aiologic.Condition()
+    cookie_dict = None  # Shared dict for process pool
 
     def __init__(self):
 
@@ -29,6 +33,7 @@ class ElanClient:
         self.logged_in: bool = False
         self.cookie: Optional[str] = None
         self.config: Optional[Config] = None
+        self.client: Optional[httpx.AsyncClient] = None
 
     def setup(self, data: Config) -> None:
         """configure this elan client"""
@@ -43,8 +48,12 @@ class ElanClient:
                 'name': elan_user,
                 'key': key
             }
+            # Close existing client if present
+            if self.client is not None:
+                asyncio.create_task(self.client.aclose())
+            self.client = httpx.AsyncClient()
 
-            logger.info("elan url: '{}', user: '{}', pass: '{}'".format(self.elan_url, elan_user, elan_pass))
+            logger.info("elan url: '{}', user: '{}'".format(self.elan_url, elan_user))
         except (KeyError, TypeError) as e:
             logger.error("Invalid configuration format: {}".format(str(e)))
             raise ValueError("Invalid eLan configuration") from e
@@ -52,14 +61,23 @@ class ElanClient:
             logger.error("Error setting up eLan client: {}".format(str(e)))
             raise
 
-    def check_response(self, response: requests.Response) -> bool:
+    async def cleanup(self) -> None:
+        """Cleanup resources"""
+        if self.client is not None:
+            try:
+                await self.client.aclose()
+                logger.debug("HTTP client closed")
+            except Exception as e:
+                logger.error("Error closing HTTP client: {}".format(str(e)))
+
+    def check_response(self, response: httpx.Response) -> bool:
         """
         check if response is acceptable
         :param response:
         :return: true: ok, false: error
         """
 
-        logger.debug("check response code: {}, reason: {}".format(response.status_code, response.reason))
+        logger.debug("check response code: {}, text: {}".format(response.status_code, response.text[:100]))
         if response.ok:
             return True
         try:
@@ -74,7 +92,7 @@ class ElanClient:
             response.close()
         return False
 
-    def get(self, url: str) -> Dict[str, Any]:
+    async def get(self, url: str) -> Dict[str, Any]:
         """
         get data from the given address
         :param url: device api endpoint
@@ -87,13 +105,13 @@ class ElanClient:
         reconnect = False
         for i in range(3):
             try:
-                self.connect(reconnect)
+                await self.connect(reconnect)
                 headers = {"Cookie": "AuthAPI={}".format(self.cookie)}
-                response = requests.get(url=url , headers=headers, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
+                response = await self.client.get(url=url, headers=headers, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
                 if self.check_response(response):
                     return response.json()
                 logger.debug("invalid response, retrying")
-            except requests.RequestException as e:
+            except httpx.HTTPError as e:
                 logger.error("HTTP request failed (retry #{}): {}".format(i, str(e)))
             except (ValueError, KeyError) as e:
                 logger.error("Response parsing failed (retry #{}): {}".format(i, str(e)))
@@ -102,44 +120,43 @@ class ElanClient:
             reconnect = True
         return {}
 
-    def post(self, url: str, data: Optional[str] = None) -> requests.Response:
+    async def post(self, url: str, data: Optional[str] = None) -> httpx.Response:
         """
         post a message to elan
         :param url: device api endpoint
         :param data: command to rend to the device
         """
-        self.connect()
+        await self.connect()
         if url[0:4] != 'http':
             url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to post {}".format(url))
-        response = requests.post(url=url, headers=headers, data=data)
+        response = await self.client.post(url=url, headers=headers, data=data, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
         self.check_response(response)
         return response
 
-    def put(self, url: str, data: Optional[str] = None) -> str: # requests.Response:
+    async def put(self, url: str, data: Optional[str] = None) -> str:
         """
         put a message to elan
         :param url: device api endpoint
         :param data: command to rend to the device
         """
-        self.connect()
+        await self.connect()
         if url[0:4] != 'http':
             url = self.elan_url + url
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         logger.debug("trying to put {}".format(url))
-        response = requests.put(url=url, headers=headers, data=data)
+        response = await self.client.put(url=url, headers=headers, data=data, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
         self.check_response(response)
         return response.text
 
-
-    def connect(self, force: bool = False) -> None:
+    async def connect(self, force: bool = False) -> None:
         """
         connect to the elan host and get a valid cookie
         :param force: get new cookie unconditionally
         """
         try:
-            with self.lock:
+            async with self.lock:
                 if self.cookie and not force:
                     logger.debug("eLan has been already connected")
                     return
@@ -149,12 +166,12 @@ class ElanClient:
                     logger.debug("first lock, connecting")
                     self.cookie = None
 
-                    self.get_login_cookie()
+                    await self.get_login_cookie()
                     self.lock.notify_all()
                 else:
                     logger.debug("waiting for the [re]connect to complete")
-                    self.lock.wait(timeout=self.config['internal']['constants']['LOCK_WAIT_TIMEOUT'])
-        except requests.RequestException as e:
+                    await self.lock.wait(timeout=self.config['internal']['constants']['LOCK_WAIT_TIMEOUT'])
+        except httpx.HTTPError as e:
             logger.error("Network error during eLan connection: {}".format(str(e)))
             raise ElanException("Network connection failed") from e
         except (ValueError, KeyError) as e:
@@ -166,17 +183,18 @@ class ElanClient:
 
     async def ws_listen(self, publisher: Callable) -> None:
         """get a message on websocket"""
-        self.connect()
+        await self.connect()
         headers = {'Cookie': "AuthAPI={}".format(self.cookie)}
         # headers = {"AuthAPI": self.cookie}
-        ws_host = self.elan_url.replace("http://", "ws://") + '/api/ws'
+        parsed = urlparse(self.elan_url)
+        ws_scheme = "wss" if parsed.scheme == "https" else "ws"
+        ws_host = urlunparse((ws_scheme, parsed.netloc, '/api/ws', '', '', ''))
         logger.debug("checking ws at {}".format(ws_host))
         try:
             ping_timeout = self.config['internal']['constants']['WEBSOCKET_PING_TIMEOUT']
             recv_timeout = self.config['internal']['constants']['WEBSOCKET_RECV_TIMEOUT']
             async for ws in ws_connect(ws_host, additional_headers=headers, ping_timeout=ping_timeout):
-            # async for ws in ws_connect(ws_host, ping_timeout=ping_timeout):
-
+                # async for ws in ws_connect(ws_host, ping_timeout=ping_timeout):
                 data: dict = json.loads(await asyncio.wait_for(ws.recv(), timeout=recv_timeout))
                 logger.debug("received {}".format(data))
                 await publisher(data['device'])
@@ -201,15 +219,14 @@ class ElanClient:
             raise
         await asyncio.sleep(0)
 
-
-    def get_login_cookie(self) -> None:
+    async def get_login_cookie(self) -> None:
         name = self.creds.get("name")
         key = self.creds.get("key")
         login_obj = {"name": name, 'key': key}
         try:
-            response = requests.post(self.elan_url + '/login', data=login_obj, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
+            response = await self.client.post(self.elan_url + '/login', data=login_obj, timeout=self.config['internal']['constants']['HTTP_TIMEOUT'])
             self.check_response(response)
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             logger.error("Network error during login: {}".format(str(e)))
             raise
         except KeyError as e:
@@ -220,8 +237,9 @@ class ElanClient:
             raise
         self.cookie = response.cookies['AuthAPI']
         logger.debug("Cookie: AuthAPI={}".format(self.cookie))
-        # headers = {'Cookie': "AuthAPI=a{}".format(self.cookie)}
-        # self.ws = websockets.connect(self.elan_url.replace("http","ws") + '/api/ws', extra_headers=headers
-        #                                     ,ping_timeout=1000)
+
+        # Sync cookie to shared dict for process pool
+        if self.cookie_dict is not None:
+            self.cookie_dict['cookie'] = self.cookie
 
         logger.info("eLan is connected")

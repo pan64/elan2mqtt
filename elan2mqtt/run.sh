@@ -1,7 +1,7 @@
 #!/bin/sh
 
 echo "Run.sh starting"
-ELAN2MQTT_VERSION=1.17.0
+ELAN2MQTT_VERSION=1.21.0
 ARCHIVE=elan2mqtt-$ELAN2MQTT_VERSION
 
 echo "Starting gateway"
