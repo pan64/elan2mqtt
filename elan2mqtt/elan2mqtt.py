@@ -130,8 +130,8 @@ def elan_ws_sync(config_dict: Dict[str, Any], device_queue: MPQueue, cookie_dict
         try:
             cookie = cookie_dict.get('cookie')
             if not cookie:
-                process_logger.error("No authentication cookie available")
-                time.sleep(config_dict['internal']['constants']['WEBSOCKET_ERROR_DELAY'])
+                process_logger.debug("Waiting for authentication cookie...")
+                time.sleep(5)  # Wait longer before checking again
                 continue
 
             headers = {'Cookie': "AuthAPI={}".format(cookie)}
