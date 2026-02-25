@@ -242,6 +242,12 @@ async def main() -> None:
     # Set the shared cookie dict on elan client
     elan.cookie_dict = cookie_dict
 
+    # Get initial authentication cookie before starting websocket process
+    try:
+        await elan.connect()
+    except Exception as e:
+        logger.warning("Initial connection failed, websocket will wait for cookie: {}".format(str(e)))
+
     # Submit websocket listener to process pool
     executor.submit(elan_ws_sync, config_data.data, device_queue, cookie_dict)
 
