@@ -120,10 +120,15 @@ def elan_ws_sync(config_dict: Dict[str, Any], device_queue: MPQueue, cookie_dict
     import json  # noqa: E402
     from urllib.parse import urlparse, urlunparse  # noqa: E402
     from websockets.sync.client import connect as ws_connect_sync  # noqa: E402
+    from websockets.exceptions import ConnectionClosedError, InvalidStatus  # noqa: E402
     import logging as process_logging  # noqa: E402
 
     # Setup logging in process
     process_logger = process_logging.getLogger(__name__)
+    
+    # Suppress websockets library's verbose error logging
+    ws_logger = process_logging.getLogger('websockets')
+    ws_logger.setLevel(process_logging.WARNING)
 
     elan_url = config_dict["options"]["eLanURL"]
 
@@ -158,24 +163,42 @@ def elan_ws_sync(config_dict: Dict[str, Any], device_queue: MPQueue, cookie_dict
                     except KeyError:
                         continue
 
+        except ConnectionClosedError as e:
+            process_logger.warning("WebSocket connection closed: {}".format(str(e).split('\n')[0]))
+            cookie_dict['cookie'] = None
+            time.sleep(config_dict['internal']['constants']['WEBSOCKET_ERROR_DELAY'])
+        except InvalidStatus as e:
+            process_logger.error("WebSocket invalid status: {}".format(str(e)))
+            cookie_dict['cookie'] = None
+            time.sleep(config_dict['internal']['constants']['WEBSOCKET_ERROR_DELAY'])
         except Exception as e:
             process_logger.error("WebSocket error: {}".format(str(e)))
-            # Invalidate cookie on connection error
             cookie_dict['cookie'] = None
             time.sleep(config_dict['internal']['constants']['WEBSOCKET_ERROR_DELAY'])
 
 
 async def cookie_refresh_monitor(cookie_dict: Dict) -> None:
     """Monitor for cookie refresh requests from the websocket process"""
+    consecutive_failures = 0
     while True:
         try:
             await asyncio.sleep(0.5)
             if cookie_dict.get('cookie') is None:
+                # Exponential backoff on consecutive failures
+                if consecutive_failures > 0:
+                    delay = min(30, 2 ** consecutive_failures)
+                    logger.warning("Cookie refresh backing off for {} seconds after {} failures".format(
+                        delay, consecutive_failures))
+                    await asyncio.sleep(delay)
+                
                 logger.info("Cookie refresh requested by websocket process")
                 try:
                     await elan.connect(force=True)
+                    consecutive_failures = 0  # Reset on success
                 except Exception as e:
-                    logger.error("Cookie refresh failed: {}".format(str(e)))
+                    consecutive_failures += 1
+                    logger.error("Cookie refresh failed (attempt {}): {}".format(
+                        consecutive_failures, str(e)))
         except Exception as e:
             logger.error("Error in cookie refresh monitor: {}".format(str(e)))
             await asyncio.sleep(1)
